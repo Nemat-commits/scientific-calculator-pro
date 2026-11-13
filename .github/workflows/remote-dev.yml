@@ -1,0 +1,51 @@
+# Development-only helper: runs .github/remote/job.sh on a hosted runner and
+# reports its log back as a check run. Removed before the branch is finalised.
+name: remote-dev
+
+on:
+  push:
+    branches: ['arena/**']
+    paths:
+      - '.github/remote/**'
+      - '.github/workflows/remote-dev.yml'
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: remote-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run job script
+        shell: bash
+        run: |
+          export OUT="$RUNNER_TEMP/out"; mkdir -p "$OUT"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+          set +e
+          bash .github/remote/job.sh > "$OUT/job.log" 2>&1
+          echo "job exit code: $?" >> "$OUT/job.log"
+
+      - name: Publish log as check run
+        if: always()
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          publish() { # name file
+            tail -c 60000 "$2" > chunk.txt
+            jq -n --arg name "$1" --arg sha "$GITHUB_SHA" --arg summary "run=$GITHUB_RUN_ID bytes=$(wc -c < "$2")" --rawfile text chunk.txt \
+              '{name:$name, head_sha:$sha, status:"completed", conclusion:"neutral", output:{title:$name, summary:$summary, text:$text}}' > payload.json
+            gh api "repos/$GITHUB_REPOSITORY/check-runs" --input payload.json --jq '.id'
+          }
+          publish remote-log "$OUT/job.log"
+          for f in "$OUT"/report-*.txt; do [ -f "$f" ] && publish "$(basename "$f" .txt)" "$f"; done
+          true
