@@ -5,6 +5,7 @@ import '../../core/constants/math_constants.dart';
 import '../../core/constants/unit_definitions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../domain/evaluator/number_formatter.dart';
 import '../../domain/evaluator/unit_converter_engine.dart';
 import '../../domain/math_engine.dart';
 import '../../domain/models/calc_error.dart';
@@ -13,11 +14,13 @@ import '../../domain/models/editor_node.dart';
 import '../state/calculator_notifier.dart';
 import '../widgets/lab_widgets.dart';
 import '../widgets/result_text.dart';
+import '../widgets/shell_layout.dart';
 
 /// Tab 4: converter for 12 unit categories plus the CODATA constants.
 ///
 /// Every unit of the selected category is listed with its converted value;
-/// tapping a row makes it the unit that is being typed.
+/// tapping a row makes it the unit that is being typed, and the `↗` of a row
+/// sends its value to the main expression.
 class UnitConverterTabView extends ConsumerStatefulWidget {
   const UnitConverterTabView({super.key});
 
@@ -48,9 +51,10 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
   }
 
   CalcValue? _typed() {
-    if (_input.isEmpty || _input == '−') return null;
+    if (_input == '−') return null;
     try {
-      return MathEngine.evaluateText(_input).value;
+      // An empty field reads 0, and 0 is what gets converted (0 °C = 32 °F).
+      return MathEngine.evaluateText(_input.isEmpty ? '0' : _input).value;
     } on CalcError {
       return null;
     }
@@ -70,11 +74,14 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
   void _insertConstant(PhysicalConstant constant) {
     ref.read(calculatorProvider.notifier).insertNodes(<EditorNode>[AtomNode(constant.symbol, AtomKind.constant)]);
     setState(() => _inserted = constant.symbol);
+    ShellLayout.showKeypad(context);
   }
 
   Widget _unitRow(UnitDef unit, CalcValue? value) {
     final active = identical(unit, _source);
     final shown = active ? null : _converted(value, unit);
+    // What the ↗ of this row sends to the calculator.
+    final number = active ? (value == null ? null : NumberFormatter.formatValue(value, prec: 12)) : shown;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => setState(() {
@@ -123,10 +130,24 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
                         // The unit being typed shows the keystrokes as they are.
                         active ? AppTypography.signs(_input.isEmpty ? '0' : _input) : '—',
                         maxLines: 1,
-                        style: AppTypography.mono(size: 15, weight: active ? AppWeight.medium : AppWeight.regular),
+                        style: AppTypography.mono(
+                          size: 15,
+                          weight: active ? AppWeight.medium : AppWeight.regular,
+                          color: active && _input.isEmpty ? AppColors.textFaint : AppColors.textPrimary,
+                        ),
                       ),
                     )
                   : ResultText(shown, fontSize: 15, weight: AppWeight.regular),
+            ),
+            // Every row keeps the room of the button, so the values line up.
+            SizedBox(
+              width: 28,
+              child: number == null
+                  ? null
+                  : SendButton(
+                      onTap: () => ShellLayout.sendToCalculator(context, number),
+                      label: 'Use the value in ${unit.name} in the calculator',
+                    ),
             ),
           ],
         ),

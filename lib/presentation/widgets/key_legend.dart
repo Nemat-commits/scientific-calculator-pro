@@ -72,7 +72,7 @@ class _FractionPainter extends CustomPainter {
     final stroke = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
+      ..strokeWidth = (size.height * 0.057).clamp(0.9, 1.4)
       ..strokeJoin = StrokeJoin.round;
     final box = size.height * 0.34;
     final left = (size.width - box) / 2;

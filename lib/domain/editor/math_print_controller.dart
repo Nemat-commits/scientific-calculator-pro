@@ -83,6 +83,28 @@ abstract final class MathPrintController {
   /// Sequence that currently holds the caret.
   static EditorSequence currentSequence(EditorState s) => _chain(s).last;
 
+  /// Parentheses that are still open around the caret: in the slot it is in
+  /// and in every slot that encloses it.
+  static int openParentheses(EditorState s) => _chain(s).fold(0, (count, seq) => count + seq.unclosedParentheses);
+
+  /// The caret at the end of the argument that follows the one it is in, or
+  /// `null` when the caret is not inside a function call with a further
+  /// argument (the `,` key).
+  static EditorState? nextArgument(EditorState s) {
+    final chain = _chain(s);
+    for (var level = chain.length - 1; level >= 1; level--) {
+      final owner = _ownerAt(chain, s.cursor, level);
+      if (owner is! FunctionCallEditorNode) continue;
+      final slots = owner.argSlots;
+      final index = slots.indexWhere((slot) => slot.id == chain[level].id);
+      if (index >= 0 && index + 1 < slots.length) {
+        final next = slots[index + 1];
+        return EditorState(s.root, s.cursor.truncate(level).push(next.id, next.length));
+      }
+    }
+    return null;
+  }
+
   /// Number of fractions / roots / powers enclosing the caret.
   static int structuralDepth(EditorState s) {
     final chain = _chain(s);

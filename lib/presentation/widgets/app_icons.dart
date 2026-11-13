@@ -1,7 +1,26 @@
 import 'package:flutter/widgets.dart';
 
 /// Vector glyphs drawn by hand so the UI does not depend on an icon font.
-enum AppIconGlyph { undo, redo, copy, paste, close, search, history, chevronDown, chevronUp, trash, plus, check }
+enum AppIconGlyph {
+  undo,
+  redo,
+  copy,
+  paste,
+  close,
+  search,
+  history,
+  chevronDown,
+  chevronUp,
+  trash,
+  plus,
+  check,
+
+  /// Two chevrons pointing apart: open a collapsed area.
+  expand,
+
+  /// Arrow to the upper right: send a value to the calculator.
+  send,
+}
 
 /// A small stroked icon.
 class AppIcon extends StatelessWidget {
@@ -126,6 +145,19 @@ class _IconPainter extends CustomPainter {
         move(0.2, 0.52);
         line(0.42, 0.74);
         line(0.8, 0.28);
+      case AppIconGlyph.expand:
+        move(0.28, 0.40);
+        line(0.5, 0.18);
+        line(0.72, 0.40);
+        move(0.28, 0.60);
+        line(0.5, 0.82);
+        line(0.72, 0.60);
+      case AppIconGlyph.send:
+        move(0.26, 0.74);
+        line(0.74, 0.26);
+        move(0.38, 0.26);
+        line(0.74, 0.26);
+        line(0.74, 0.62);
     }
     canvas.drawPath(path, paint);
   }

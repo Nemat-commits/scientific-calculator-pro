@@ -43,6 +43,13 @@ abstract final class AppColors {
   static const Color keyActive = Color(0xFF0C4A6E);
   static const Color keyActiveText = Color(0xFF7DD3FC);
 
+  /// Legend of a key that draws attention to itself (MC / MR while the
+  /// memory holds a value).
+  static const Color keyEmphasisText = Color(0xFFE2E8F0);
+
+  /// Badge on a key (number of parentheses that are still open).
+  static const Color keyBadge = Color(0xFF0EA5E9);
+
   /// Hairline on the top edge of every key.
   static const Color keyEdge = Color(0x14FFFFFF);
 
@@ -69,8 +76,15 @@ abstract final class AppColors {
   static const Color mathVariable = Color(0xFFC4B5FD);
   static const Color mathParen = Color(0xFF94A3B8);
   static const Color mathPlaceholder = Color(0xFF334155);
+
+  /// Hints that are not part of the expression: the `0` of an empty line and
+  /// the parentheses that are closed implicitly.
+  static const Color mathGhost = Color(0xFF475569);
   static const Color caret = Color(0xFF38BDF8);
 
   static const Color scrim = Color(0xB3090B10);
+
+  /// Surface of a floating message.
+  static const Color toast = Color(0xFF1E293B);
   static const Color transparent = Color(0x00000000);
 }

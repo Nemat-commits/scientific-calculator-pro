@@ -294,6 +294,101 @@ void main() {
     });
   });
 
+  group('Parentheses that are still open', () {
+    const open = AtomKey('(', AtomKind.paren), close = AtomKey(')', AtomKind.paren);
+    const power = TemplateKey(TemplateKind.power);
+
+    test('are counted per sequence; a stray closing one does not count', () {
+      expect(EditorSequence.root().unclosedParentheses, 0);
+      expect(keys(<CalcKey>[digit('2'), op('×'), open, digit('3')]).root.unclosedParentheses, 1);
+      expect(keys(<CalcKey>[open, open, digit('3'), close]).root.unclosedParentheses, 1);
+      expect(keys(<CalcKey>[open, digit('3'), close]).root.unclosedParentheses, 0);
+      expect(keys(<CalcKey>[close, open, digit('3')]).root.unclosedParentheses, 1);
+      // The parentheses of a function template are part of the template.
+      expect(
+          keys(<CalcKey>[const TemplateKey(TemplateKind.function, name: 'sin'), digit('3')]).root.unclosedParentheses,
+          0);
+    });
+
+    test('around the caret: its own slot and the slots that enclose it', () {
+      // 2×(3^(1+|
+      final s = keys(<CalcKey>[digit('2'), op('×'), open, digit('3'), power, open, digit('1'), op('+')]);
+      expect(MathPrintController.currentSequence(s).unclosedParentheses, 1);
+      expect(MathPrintController.openParentheses(s), 2);
+      // Back on the main line only the outer one is open around the caret.
+      expect(MathPrintController.openParentheses(keys(<CalcKey>[right], s)), 1);
+    });
+
+    test('inside a slot end with the slot instead of swallowing what follows', () {
+      // 2^[(1+1]×3: the exponent is (1+1), not (1+1)×3.
+      final s = keys(<CalcKey>[digit('2'), power, open, digit('1'), op('+'), digit('1'), right, op('×'), digit('3')]);
+      expect(text(s), '2^((1+1))×3');
+      expect(MathEngine.evaluateSequence(s.root).primary, '12');
+
+      // The same in a function argument and in a numerator.
+      final f = keys(<CalcKey>[
+        const TemplateKey(TemplateKind.function, name: 'abs'),
+        open,
+        digit('2'),
+        op('−'),
+        digit('5'),
+        right,
+        op('+'),
+        digit('1'),
+      ]);
+      expect(text(f), 'abs((2−5))+1');
+      expect(MathEngine.evaluateSequence(f.root).primary, '4');
+      final q = keys(<CalcKey>[
+        const TemplateKey(TemplateKind.fraction),
+        open,
+        digit('1'),
+        op('+'),
+        digit('2'),
+        down,
+        digit('3'),
+        right,
+        op('+'),
+        digit('1'),
+      ]);
+      expect(MathEngine.evaluateSequence(q.root).primary, '2');
+    });
+
+    test('on the main line are still closed at the end of the input', () {
+      final s = keys(<CalcKey>[digit('2'), op('×'), open, digit('3'), op('+'), digit('4')]);
+      expect(text(s), '2×(3+4');
+      expect(MathEngine.evaluateSequence(s.root).primary, '14');
+    });
+  });
+
+  group('The argument separator', () {
+    test('moves the caret to the next argument of a function call', () {
+      var s = keys(<CalcKey>[const TemplateKey(TemplateKind.function, name: 'gcd', arity: 2), digit('8'), digit('4')]);
+      final next = MathPrintController.nextArgument(s);
+      expect(next, isNotNull);
+      s = keys(<CalcKey>[digit('3'), digit('6')], next);
+      expect(text(s), 'gcd(84,36)');
+      expect(MathEngine.evaluateSequence(s.root).primary, '12');
+      // The last argument has no successor, and neither has the main line.
+      expect(MathPrintController.nextArgument(s), isNull);
+      expect(MathPrintController.nextArgument(keys(<CalcKey>[digit('1')])), isNull);
+    });
+
+    test('works from inside a nested template of the argument', () {
+      // logb(2^3|, …): the caret sits in the exponent of the first argument.
+      final s = keys(<CalcKey>[
+        const TemplateKey(TemplateKind.function, name: 'logb', arity: 2),
+        digit('2'),
+        const TemplateKey(TemplateKind.power),
+        digit('3'),
+      ]);
+      final next = MathPrintController.nextArgument(s);
+      expect(next, isNotNull);
+      final done = keys(<CalcKey>[digit('6'), digit('4')], next);
+      expect(text(done), 'logb(2^(3),64)');
+      expect(MathEngine.evaluateSequence(done.root).primary, '2');
+    });
+  });
+
   group('Display text', () {
     const fraction = TemplateKey(TemplateKind.fraction);
     const power = TemplateKey(TemplateKind.power);

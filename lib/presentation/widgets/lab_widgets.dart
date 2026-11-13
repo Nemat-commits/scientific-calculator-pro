@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import 'app_icons.dart';
 import 'calc_key_button.dart';
 
 /// A raised surface inside a tab.
@@ -22,58 +23,110 @@ class Panel extends StatelessWidget {
       );
 }
 
-/// A row of mutually exclusive chips (scrolls horizontally when crowded).
-class ChoiceChips extends StatelessWidget {
-  const ChoiceChips(
-      {super.key, required this.labels, required this.selected, required this.onSelected, this.height = 30});
+/// A row of mutually exclusive chips. It scrolls horizontally when crowded
+/// and keeps the selected chip in view.
+class ChoiceChips extends StatefulWidget {
+  const ChoiceChips({
+    super.key,
+    required this.labels,
+    required this.selected,
+    required this.onSelected,
+    this.semanticLabels,
+    this.height = 30,
+  });
 
   final List<String> labels;
+
+  /// What a screen reader says for each chip, where [labels] are shortened.
+  final List<String>? semanticLabels;
   final int selected;
   final ValueChanged<int> onSelected;
   final double height;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        height: height,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: labels.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 6),
-          itemBuilder: (context, i) {
-            final active = i == selected;
-            return Semantics(
-              button: true,
-              selected: active,
-              label: labels[i],
-              onTap: () => onSelected(i),
-              excludeSemantics: true,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onSelected(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 140),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: active ? AppColors.tabThumb : AppColors.panel,
-                    borderRadius: BorderRadius.circular(height / 2),
-                    border: Border.all(color: active ? AppColors.accentSoft : AppColors.panelBorder),
-                  ),
-                  child: Text(
-                    labels[i],
-                    maxLines: 1,
-                    style: AppTypography.ui(
-                      size: 12.5,
-                      weight: active ? AppWeight.strong : AppWeight.medium,
-                      color: active ? AppColors.textPrimary : AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
+  State<ChoiceChips> createState() => _ChoiceChipsState();
+}
+
+class _ChoiceChipsState extends State<ChoiceChips> {
+  final Map<int, GlobalKey> _keys = <int, GlobalKey>{};
+
+  GlobalKey _keyOf(int index) => _keys.putIfAbsent(index, GlobalKey.new);
+
+  @override
+  void didUpdateWidget(ChoiceChips old) {
+    super.didUpdateWidget(old);
+    if (old.selected != widget.selected) _reveal(widget.selected);
+  }
+
+  /// Scrolls the chip [index] to the middle of the row, which also brings its
+  /// neighbours within reach.
+  void _reveal(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _keys[index]?.currentContext;
+      if (!mounted || target == null) return;
+      Scrollable.ensureVisible(
+        target,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
       );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final height = widget.height;
+    return SizedBox(
+      height: height,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            for (var i = 0; i < widget.labels.length; i++) ...<Widget>[
+              if (i > 0) const SizedBox(width: 6),
+              _chip(i, height),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(int i, double height) {
+    final active = i == widget.selected;
+    return Semantics(
+      key: _keyOf(i),
+      button: true,
+      selected: active,
+      label: (widget.semanticLabels ?? widget.labels)[i],
+      onTap: () => widget.onSelected(i),
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onSelected(i),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          height: height,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: active ? AppColors.tabThumb : AppColors.panel,
+            borderRadius: BorderRadius.circular(height / 2),
+            border: Border.all(color: active ? AppColors.accentSoft : AppColors.panelBorder),
+          ),
+          child: Text(
+            widget.labels[i],
+            maxLines: 1,
+            style: AppTypography.ui(
+              size: 12.5,
+              weight: active ? AppWeight.strong : AppWeight.medium,
+              color: active ? AppColors.textPrimary : AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// A compact text button.
@@ -277,11 +330,22 @@ class MiniKeypad extends StatelessWidget {
 
 /// `label  value` line of a result list.
 class ValueRow extends StatelessWidget {
-  const ValueRow(this.label, this.value, {super.key, this.onTap, this.emphasised = false, this.numeric = true});
+  const ValueRow(
+    this.label,
+    this.value, {
+    super.key,
+    this.onTap,
+    this.onSend,
+    this.emphasised = false,
+    this.numeric = true,
+  });
 
   final String label;
   final String value;
   final VoidCallback? onTap;
+
+  /// Shows a `↗` behind the value that sends it to the calculator.
+  final VoidCallback? onSend;
   final bool emphasised;
 
   /// Whether [value] is a number (drawn with the operator-width minus) rather
@@ -313,7 +377,36 @@ class ValueRow extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onSend != null) SendButton(onTap: onSend!, label: 'Use $label in the calculator'),
             ],
+          ),
+        ),
+      );
+}
+
+/// `↗`: sends the value next to it to the main expression.
+class SendButton extends StatelessWidget {
+  const SendButton({super.key, required this.onTap, this.label = 'Use in the calculator'});
+
+  final VoidCallback onTap;
+
+  /// Accessible name.
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        // A node of its own: the button must not blend into the line it is on.
+        container: true,
+        button: true,
+        label: label,
+        onTap: onTap,
+        excludeSemantics: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: const Padding(
+            padding: EdgeInsets.only(left: 10, top: 5, bottom: 5, right: 2),
+            child: AppIcon(AppIconGlyph.send, size: 16, color: AppColors.accent),
           ),
         ),
       );

@@ -48,6 +48,8 @@ class CalcKeyButton extends ConsumerStatefulWidget {
     this.onLongPress,
     this.semanticLabel,
     this.radius = 16,
+    this.corner,
+    this.emphasised = false,
   }) : assert(label != null || child != null, 'A key needs a label or a child');
 
   final VoidCallback? onPressed;
@@ -66,6 +68,13 @@ class CalcKeyButton extends ConsumerStatefulWidget {
   final VoidCallback? onLongPress;
   final String? semanticLabel;
   final double radius;
+
+  /// Small secondary legend in the top right corner (what `INV` turns the
+  /// key into).
+  final Widget? corner;
+
+  /// Draws attention to the key: accent outline and a brighter legend.
+  final bool emphasised;
 
   /// Legend colour of a tone.
   static Color foregroundOf(KeyTone tone) => switch (tone) {
@@ -130,7 +139,8 @@ class _CalcKeyButtonState extends ConsumerState<CalcKeyButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
-    final foreground = CalcKeyButton.foregroundOf(widget.tone);
+    final foreground = widget.emphasised ? AppColors.keyEmphasisText : CalcKeyButton.foregroundOf(widget.tone);
+    final corner = widget.corner;
     final legend = widget.child ??
         Text(
           AppTypography.signs(widget.label!),
@@ -171,7 +181,7 @@ class _CalcKeyButtonState extends ConsumerState<CalcKeyButton> {
             duration: _pressDuration,
             curve: Curves.easeOut,
             child: AnimatedOpacity(
-              opacity: enabled ? 1 : 0.35,
+              opacity: enabled ? 1 : 0.28,
               duration: _pressDuration,
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -184,9 +194,19 @@ class _CalcKeyButtonState extends ConsumerState<CalcKeyButton> {
                         )
                       : null,
                   borderRadius: radius,
-                  border: Border.all(color: AppColors.keyEdge),
+                  border: Border.all(color: widget.emphasised ? AppColors.accent : AppColors.keyEdge),
                 ),
-                child: _ScaledLegend(child: legend),
+                child: corner == null
+                    ? _ScaledLegend(child: legend)
+                    : Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          // The main legend sits a little lower to stay clear
+                          // of the corner.
+                          Padding(padding: const EdgeInsets.only(top: 4), child: _ScaledLegend(child: legend)),
+                          Positioned(top: 5, right: 7, child: corner),
+                        ],
+                      ),
               ),
             ),
           ),

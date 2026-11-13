@@ -72,6 +72,11 @@ class CalculatorUiState {
   /// Whether the independent memory holds something.
   bool get hasMemory => (variables['M'] ?? '0') != '0';
 
+  /// Parentheses that are still open around the caret (the badge on the
+  /// `( )` key).
+  int get unclosedParenthesesCount =>
+      inputPhase == InputPhase.editing ? MathPrintController.openParentheses(editor) : 0;
+
   CalculatorUiState copyWith({
     EditorSequence? rootSequence,
     List<(String sequenceId, int offset)>? cursorPath,

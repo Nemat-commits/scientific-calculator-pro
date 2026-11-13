@@ -80,14 +80,21 @@ class MathLayout {
 
 /// Recursive layout of the editor tree into boxes with a common baseline.
 class MathLayoutEngine {
-  MathLayoutEngine({required this.fontSize, this.activeSlotId, this.textScaler = TextScaler.noScaling})
-      : _minFont = fontSize * 0.5;
+  MathLayoutEngine({
+    required this.fontSize,
+    this.activeSlotId,
+    this.textScaler = TextScaler.noScaling,
+    this.placeholder,
+  }) : _minFont = fontSize * 0.5;
 
   /// Font size of the root line.
   final double fontSize;
 
   /// Slot that holds the caret (its empty placeholder is highlighted).
   final String? activeSlotId;
+
+  /// Muted text an empty expression line shows in front of the caret.
+  final String? placeholder;
   final TextScaler textScaler;
   final double _minFont;
   final List<SlotGeometry> _slots = <SlotGeometry>[];
@@ -179,7 +186,16 @@ class MathLayoutEngine {
       x += child.w;
       previous = child;
     }
-    box.finish(x);
+    // Parentheses that are still open are closed where the slot ends; the
+    // ghosts show the grouping the evaluator uses.
+    final open = seq.unclosedParentheses;
+    if (open > 0) {
+      final ghost = _glyphs(')' * open, f, AppColors.mathGhost);
+      box.addGhost(ghost, x);
+      x += ghost.w;
+    }
+    final hint = placeholder;
+    box.finish(x, placeholder: depth == 0 && hint != null ? _glyphs(hint, f, AppColors.mathGhost) : null);
     return box;
   }
 
@@ -362,6 +378,10 @@ class _SeqBox extends _Box {
   final int depth;
   final bool active;
   final List<(_Box box, double dx)> items = <(_Box, double)>[];
+
+  /// Hints that are drawn with the content but are not part of it: the caret
+  /// never goes behind them.
+  final List<(_Box box, double dx)> ghosts = <(_Box, double)>[];
   final List<double> _carets = <double>[0];
 
   void add(_Box box, double dx) {
@@ -371,8 +391,21 @@ class _SeqBox extends _Box {
     desc = math.max(desc, box.desc);
   }
 
-  void finish(double width) {
-    if (items.isEmpty) {
+  void addGhost(_Box box, double dx) {
+    ghosts.add((box, dx));
+    asc = math.max(asc, box.asc);
+    desc = math.max(desc, box.desc);
+  }
+
+  /// [placeholder] stands in front of the caret of an empty line.
+  void finish(double width, {_Box? placeholder}) {
+    if (items.isEmpty && placeholder != null) {
+      ghosts.add((placeholder, 0));
+      w = placeholder.w + f * 0.12;
+      asc = math.max(placeholder.asc, f * 0.76);
+      desc = math.max(placeholder.desc, f * 0.22);
+      _carets[0] = placeholder.w + f * 0.06;
+    } else if (items.isEmpty) {
       w = f * 0.58;
       asc = f * 0.76;
       desc = f * 0.10;
@@ -401,12 +434,19 @@ class _SeqBox extends _Box {
     for (final (box, dx) in items) {
       box.place(px + dx, py, engine);
     }
+    for (final (box, dx) in ghosts) {
+      box.place(px + dx, py, engine);
+    }
   }
 
   @override
   void paint(Canvas canvas) {
+    for (final (box, _) in ghosts) {
+      box.paint(canvas);
+    }
     if (items.isEmpty) {
-      // The empty expression line shows just the caret.
+      // The empty expression line shows the caret, behind its placeholder
+      // if it has one.
       if (depth == 0) return;
       final rect = Rect.fromLTRB(x + f * 0.06, y - f * 0.70, x + w - f * 0.06, y + f * 0.04);
       final radius = Radius.circular(f * 0.10);
@@ -624,9 +664,13 @@ class MathPrintCanvas extends StatefulWidget {
     this.onTapPosition,
     this.alignment = Alignment.centerLeft,
     this.fadeColor = AppColors.cardSurface,
+    this.placeholder,
   });
 
   final EditorSequence root;
+
+  /// Muted text shown in front of the caret while the expression is empty.
+  final String? placeholder;
 
   /// Caret position; `null` renders a read-only expression.
   final CursorPath? cursor;
@@ -711,12 +755,16 @@ class _MathPrintCanvasState extends State<MathPrintCanvas> {
   MathLayout _fitted(BoxConstraints constraints, TextScaler scaler) {
     final active = widget.cursor?.sequenceId;
     final maxWidth = constraints.maxWidth, maxHeight = constraints.maxHeight;
-    final key = (widget.root, widget.fontSize, active, scaler, maxWidth, maxHeight);
+    final key = (widget.root, widget.fontSize, active, scaler, maxWidth, maxHeight, widget.placeholder);
     final cached = _layout;
     if (cached != null && _layoutKey == key) return cached;
 
-    MathLayout at(double size) =>
-        MathLayoutEngine(fontSize: size, activeSlotId: active, textScaler: scaler).layout(widget.root);
+    MathLayout at(double size) => MathLayoutEngine(
+          fontSize: size,
+          activeSlotId: active,
+          textScaler: scaler,
+          placeholder: widget.placeholder,
+        ).layout(widget.root);
     final widthFloor = widget.fontSize * MathPrintCanvas.minWidthFit;
     final heightFloor = widget.fontSize * MathPrintCanvas.minHeightFit;
     var size = widget.fontSize;

@@ -159,6 +159,32 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
   /// Sanitises [text] and inserts it at the caret.
   void pasteText(String text) => insertNodes(ClipboardSanitizer.sanitize(text));
 
+  /// Inserts a number that another part of the app produced (history tape,
+  /// converter, lab) at the caret. [value] is a formatter string such as
+  /// `1.5e-7`, `4.2 × 10^16325` or `-4 + 2i`; anything that is not a plain
+  /// unsigned number goes in parentheses so that it stays one operand.
+  void insertValue(String value) {
+    final literal = value.trim().replaceAll(' × 10^', 'E');
+    if (literal.isEmpty) return;
+    final compound = literal.contains(' ') || literal.startsWith('-') || literal.startsWith('−');
+    pasteText(compound ? '($literal)' : literal);
+    if (literal.contains('i') && !state.isComplexEnabled) toggleComplex(); // as when i is typed
+  }
+
+  /// `,`: inside a function with several arguments the caret moves on to the
+  /// next argument; anywhere else an argument separator is typed.
+  void pressSeparator() {
+    final before = state;
+    if (before.inputPhase == InputPhase.editing) {
+      final next = MathPrintController.nextArgument(before.editor);
+      if (next != null) {
+        _apply(before, EditingSession(next, phase: before.inputPhase));
+        return;
+      }
+    }
+    press(const AtomKey(',', AtomKind.separator));
+  }
+
   /// Replaces the input line with a stored expression (history recall).
   void recallExpression(String expressionJson) {
     try {

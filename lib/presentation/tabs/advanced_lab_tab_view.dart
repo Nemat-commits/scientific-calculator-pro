@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +17,7 @@ import '../state/calculator_notifier.dart';
 import '../widgets/calc_key_button.dart';
 import '../widgets/lab_widgets.dart';
 import '../widgets/segmented_tab_bar.dart';
+import '../widgets/shell_layout.dart';
 
 /// Value typed into a lab field (`3`, `−2.5`, `1/3`, `4E-3`); empty is zero.
 CalcValue _fieldValue(String text) => text.trim().isEmpty ? Values.zero : MathEngine.evaluateText(text).value;
@@ -24,6 +27,18 @@ Decimal _fieldDecimal(String text) => _fieldValue(text).asDecimal;
 String _show(CalcValue v, [int prec = 12]) => NumberFormatter.formatValue(v, prec: prec);
 
 String _showDec(Decimal? d, [int prec = 10]) => d == null ? '—' : NumberFormatter.formatDec(d, prec: prec);
+
+/// A result line with a `↗` that sends the number to the main expression.
+/// [number] is what is sent when the line shows more than the plain number.
+ValueRow _resultRow(BuildContext context, String label, String shown, {String? number, bool emphasised = false}) {
+  final value = number ?? shown;
+  return ValueRow(
+    label,
+    shown,
+    emphasised: emphasised,
+    onSend: value == '—' ? null : () => ShellLayout.sendToCalculator(context, value),
+  );
+}
 
 /// Tab 3: Solver, Matrix, Table, Stats and Base-N sub-modes.
 class AdvancedLabTabView extends StatefulWidget {
@@ -68,7 +83,7 @@ class _WithKeypad extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
-          final pad = (constraints.maxHeight * 0.46).clamp(120.0, 200.0);
+          final pad = (constraints.maxHeight * 0.46).clamp(120.0, 240.0);
           return Column(
             children: <Widget>[
               Expanded(child: Panel(child: content)),
@@ -186,16 +201,18 @@ class _SolverViewState extends State<_SolverView> {
             const SizedBox(height: 10),
             const SectionLabel('Roots'),
             for (var i = 0; i < solution.roots.length; i++)
-              ValueRow(
+              _resultRow(
+                context,
                 'x${i + 1}',
                 () {
                   final exact = NumberFormatter.formatSecondary(solution.roots[i]);
                   final decimal = _show(solution.roots[i]);
                   return exact == null ? decimal : '$exact  =  $decimal';
                 }(),
+                number: _show(solution.roots[i]),
                 emphasised: true,
               ),
-            if (solution.discriminant != null) ValueRow('Δ = b² − 4ac', _show(solution.discriminant!)),
+            if (solution.discriminant != null) _resultRow(context, 'Δ = b² − 4ac', _show(solution.discriminant!)),
           ],
         ],
       ),
@@ -408,7 +425,7 @@ class _MatrixViewState extends State<_MatrixView> {
                 if (result is MatrixVal) SmallButton('→ $m', onTap: _storeResult),
               ],
             ),
-            if (result is MatrixVal) _grid(result) else ValueRow('=', _show(result), emphasised: true),
+            if (result is MatrixVal) _grid(result) else _resultRow(context, '=', _show(result), emphasised: true),
           ],
         ],
       ),
@@ -592,31 +609,32 @@ class _StatsViewState extends State<_StatsView> {
       if (!_paired) {
         final s = StatisticsEngine.oneVariable(xs);
         return <Widget>[
-          ValueRow('n', '${s.n}'),
-          ValueRow('mean', _showDec(s.mean), emphasised: true),
-          ValueRow('Σx', _showDec(s.sum)),
-          ValueRow('Σx²', _showDec(s.sumOfSquares)),
-          ValueRow('σ (population)', _showDec(s.populationStdDev)),
-          ValueRow('s (sample)', _showDec(s.sampleStdDev)),
-          ValueRow('min', _showDec(s.min)),
-          ValueRow('Q1', _showDec(s.q1)),
-          ValueRow('median', _showDec(s.median)),
-          ValueRow('Q3', _showDec(s.q3)),
-          ValueRow('max', _showDec(s.max)),
+          _resultRow(context, 'n', '${s.n}'),
+          _resultRow(context, 'mean', _showDec(s.mean), emphasised: true),
+          _resultRow(context, 'Σx', _showDec(s.sum)),
+          _resultRow(context, 'Σx²', _showDec(s.sumOfSquares)),
+          _resultRow(context, 'σ (population)', _showDec(s.populationStdDev)),
+          _resultRow(context, 's (sample)', _showDec(s.sampleStdDev)),
+          _resultRow(context, 'min', _showDec(s.min)),
+          _resultRow(context, 'Q1', _showDec(s.q1)),
+          _resultRow(context, 'median', _showDec(s.median)),
+          _resultRow(context, 'Q3', _showDec(s.q3)),
+          _resultRow(context, 'max', _showDec(s.max)),
         ];
       }
       final t = StatisticsEngine.twoVariable(xs, <Decimal>[for (final d in _data) _fieldDecimal(d.$2)]);
+      final intercept = _showDec(t.intercept, 8), slope = _showDec(t.slope, 8);
       return <Widget>[
-        ValueRow('n', '${t.x.n}'),
-        ValueRow('mean x', _showDec(t.x.mean)),
-        ValueRow('mean y', _showDec(t.y.mean)),
-        ValueRow('σx', _showDec(t.x.populationStdDev)),
-        ValueRow('σy', _showDec(t.y.populationStdDev)),
-        ValueRow('Σxy', _showDec(t.sumOfProducts)),
-        ValueRow('y = a + b·x', 'a = ${_showDec(t.intercept, 8)}', emphasised: true),
-        ValueRow('', 'b = ${_showDec(t.slope, 8)}', emphasised: true),
-        ValueRow('r', _showDec(t.correlation)),
-        ValueRow('r²', _showDec(t.rSquared)),
+        _resultRow(context, 'n', '${t.x.n}'),
+        _resultRow(context, 'mean x', _showDec(t.x.mean)),
+        _resultRow(context, 'mean y', _showDec(t.y.mean)),
+        _resultRow(context, 'σx', _showDec(t.x.populationStdDev)),
+        _resultRow(context, 'σy', _showDec(t.y.populationStdDev)),
+        _resultRow(context, 'Σxy', _showDec(t.sumOfProducts)),
+        _resultRow(context, 'y = a + b·x', 'a = $intercept', number: intercept, emphasised: true),
+        _resultRow(context, '', 'b = $slope', number: slope, emphasised: true),
+        _resultRow(context, 'r', _showDec(t.correlation)),
+        _resultRow(context, 'r²', _showDec(t.rSquared)),
       ];
     } on CalcError catch (e) {
       return <Widget>[_errorText(e.message)];
@@ -805,32 +823,49 @@ class _BaseNViewState extends State<_BaseNView> {
     String word(int radix) {
       if (value == null) return '—';
       final text = NumberFormatter.formatBitwise(value, radix: radix);
-      return radix == 10 ? NumberFormatter.groupThousands(text) : NumberFormatter.groupWord(text);
+      if (radix == 10) return NumberFormatter.groupThousands(text);
+      // Binary is shown in whole bytes, so that the nibbles line up.
+      return NumberFormatter.groupWord(radix == 2 ? text.padLeft((text.length + 7) ~/ 8 * 8, '0') : text);
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final pad = (constraints.maxHeight * 0.52).clamp(150.0, 230.0);
+        // The read-out (word size, input line, four bases) comes first; the
+        // keypad gets the rest, within limits.
+        final pad = math.min(constraints.maxHeight * 0.56, constraints.maxHeight - 252).clamp(150.0, 300.0);
         return Column(
           children: <Widget>[
             Expanded(
               child: Panel(
                 child: ListView(
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: ChoiceChips(
-                            labels: <String>[for (final w in _words) '$w-bit'],
-                            selected: _words.indexOf(_config.wordSize),
-                            onSelected: (i) => _reconfigure(_config.copyWith(wordSize: _words[i])),
-                          ),
-                        ),
-                        SmallButton(
-                          _config.isSigned ? 'signed' : 'unsigned',
-                          onTap: () => _reconfigure(_config.copyWith(isSigned: !_config.isSigned)),
-                        ),
-                      ],
+                    LayoutBuilder(
+                      builder: (context, box) {
+                        // On a narrow phone the unit is written once, so that
+                        // all four word sizes stay on screen.
+                        final short = box.maxWidth < 344;
+                        return Row(
+                          children: <Widget>[
+                            if (short) ...<Widget>[
+                              Text('bits', style: AppTypography.ui(size: 12, color: AppColors.textMuted)),
+                              const SizedBox(width: 6),
+                            ],
+                            Expanded(
+                              child: ChoiceChips(
+                                labels: <String>[for (final w in _words) short ? '$w' : '$w-bit'],
+                                semanticLabels: <String>[for (final w in _words) '$w-bit'],
+                                selected: _words.indexOf(_config.wordSize),
+                                onSelected: (i) => _reconfigure(_config.copyWith(wordSize: _words[i])),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            SmallButton(
+                              _config.isSigned ? 'signed' : 'unsigned',
+                              onTap: () => _reconfigure(_config.copyWith(isSigned: !_config.isSigned)),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -853,13 +888,17 @@ class _BaseNViewState extends State<_BaseNView> {
                       ),
                     ),
                     if (_error != null) _errorText(_error!),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
+                    // Tapping a row makes its base the one that is typed in.
                     for (var i = 0; i < _radices.length; i++)
-                      ValueRow(
-                        _radixNames[i],
-                        word(_radices[i]),
-                        emphasised: _radices[i] == _config.radix,
+                      _RadixRow(
+                        name: _radixNames[i],
+                        value: word(_radices[i]),
+                        active: _radices[i] == _config.radix,
                         onTap: () => _reconfigure(_config.copyWith(radix: _radices[i])),
+                        onSend: _radices[i] != 10 || value == null
+                            ? null
+                            : () => ShellLayout.sendToCalculator(context, NumberFormatter.formatBitwise(value)),
                       ),
                   ],
                 ),
@@ -924,4 +963,84 @@ class _BaseNViewState extends State<_BaseNView> {
       },
     );
   }
+}
+
+/// One base of the Base-N read-out. The base that is being typed in carries
+/// an accent bar; a tap selects the base.
+class _RadixRow extends StatelessWidget {
+  const _RadixRow({required this.name, required this.value, required this.active, required this.onTap, this.onSend});
+
+  final String name;
+  final String value;
+  final bool active;
+  final VoidCallback onTap;
+
+  /// Sends the value to the main expression (decimal row only).
+  final VoidCallback? onSend;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        selected: active,
+        label: '$name $value',
+        onTap: onTap,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: <Widget>[
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 3,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.accent : AppColors.transparent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 34,
+                  child: ExcludeSemantics(
+                    child: Text(
+                      name,
+                      style: AppTypography.ui(
+                        size: 12.5,
+                        weight: active ? AppWeight.strong : AppWeight.medium,
+                        color: active ? AppColors.accent : AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: ExcludeSemantics(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        AppTypography.signs(value),
+                        maxLines: 1,
+                        style: AppTypography.mono(
+                          size: active ? 16 : 14,
+                          weight: active ? AppWeight.medium : AppWeight.regular,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Every row keeps the room of the button, so the values line up.
+                SizedBox(
+                  width: 28,
+                  child: onSend == null
+                      ? null
+                      : SendButton(onTap: onSend!, label: 'Use the decimal value in the calculator'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }

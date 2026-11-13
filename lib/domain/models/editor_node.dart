@@ -47,6 +47,23 @@ class EditorSequence {
   bool get isNotEmpty => children.isNotEmpty;
   int get length => children.length;
 
+  /// Number of `(` typed into this sequence that have no matching `)` yet.
+  /// They are closed implicitly where the sequence ends, which the display
+  /// shows as ghost parentheses.
+  int get unclosedParentheses {
+    var open = 0;
+    for (final node in children) {
+      if (node is AtomNode && node.kind == AtomKind.paren) {
+        if (node.text == '(') {
+          open++;
+        } else if (open > 0) {
+          open--;
+        }
+      }
+    }
+    return open;
+  }
+
   /// Same identity, different content.
   EditorSequence withChildren(List<EditorNode> newChildren) =>
       EditorSequence(id: id, children: List<EditorNode>.unmodifiable(newChildren));

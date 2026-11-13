@@ -111,7 +111,14 @@ abstract final class TreeToTokenLowerer {
       }
     }
 
-    void plain(EditorSequence inner) => _lowerSequence(inner, out, pretty: pretty);
+    // A parenthesis that is still open where a slot ends is closed there, so
+    // it cannot swallow what follows the template: 2^[(1+1]×3 is 2^((1+1))×3.
+    void plain(EditorSequence inner) {
+      _lowerSequence(inner, out, pretty: pretty);
+      for (var open = inner.unclosedParentheses; open > 0; open--) {
+        out.add(_close);
+      }
+    }
 
     void group(EditorSequence inner) {
       out.add(_open);

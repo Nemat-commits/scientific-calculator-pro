@@ -2,15 +2,23 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/haptics/haptic_service.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_typography.dart';
 import '../../domain/editor/calc_key.dart';
 import '../../domain/editor/math_print_controller.dart';
 import '../../domain/models/editor_node.dart';
 import '../state/calculator_notifier.dart';
 import '../state/calculator_ui_state.dart';
 import '../widgets/calc_key_button.dart';
+import '../widgets/key_legend.dart';
+import '../widgets/utility_strip.dart';
 
 /// Tab 1: the 4 × 5 core keypad with the cursor & memory strip above it.
-class StandardTabView extends ConsumerWidget {
+///
+/// `f(x)` at the start of the strip opens a row with the most used scientific
+/// keys, so that an everyday formula such as `2 × sin(45) + √16` can be typed
+/// without changing tabs.
+class StandardTabView extends ConsumerStatefulWidget {
   const StandardTabView({super.key});
 
   /// `(` or `)` - whichever makes sense at the caret.
@@ -37,8 +45,17 @@ class StandardTabView extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StandardTabView> createState() => _StandardTabViewState();
+}
+
+class _StandardTabViewState extends ConsumerState<StandardTabView> {
+  /// Whether the row of quick scientific keys is open.
+  bool _quickOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final notifier = ref.read(calculatorProvider.notifier);
+    final openParentheses = ref.watch(calculatorProvider.select((s) => s.unclosedParenthesesCount));
 
     Widget digit(String d) => CalcKeyButton(
           label: d,
@@ -52,21 +69,17 @@ class StandardTabView extends ConsumerWidget {
           haptic: HapticPattern.medium,
           onPressed: () => notifier.press(AtomKey(symbol, AtomKind.binaryOp)),
         );
-    Widget move(String label, CursorDirection direction, String name) => CalcKeyButton(
-          label: label,
+    Widget quick(String name, CalcKey key, Widget Function(Color color) legend) => CalcKeyButton(
           tone: KeyTone.function,
-          fontSize: 13,
           radius: 12,
-          repeats: true,
-          semanticLabel: 'Cursor $name',
-          onPressed: () => notifier.press(MoveKey(direction)),
+          semanticLabel: name,
+          onPressed: () => notifier.press(key),
+          child: legend(CalcKeyButton.foregroundOf(KeyTone.function)),
         );
-    Widget memory(String label, VoidCallback action) => CalcKeyButton(
-          label: label,
-          tone: KeyTone.function,
-          fontSize: 13,
-          radius: 12,
-          onPressed: action,
+    Widget function(String name) => quick(
+          name,
+          TemplateKey(TemplateKind.function, name: name),
+          (c) => KeyLegend(name, color: c, size: 15),
         );
 
     return LayoutBuilder(
@@ -78,21 +91,48 @@ class StandardTabView extends ConsumerWidget {
           children: <Widget>[
             SizedBox(
               height: strip,
-              child: KeyGrid(
-                gap: gap,
-                rows: <List<Widget>>[
-                  <Widget>[
-                    move('◀', CursorDirection.left, 'left'),
-                    move('▶', CursorDirection.right, 'right'),
-                    move('▲', CursorDirection.up, 'up'),
-                    move('▼', CursorDirection.down, 'down'),
-                    memory('MC', notifier.memoryClear),
-                    memory('MR', notifier.memoryRecall),
-                    memory('M+', notifier.memoryAdd),
-                    memory('M−', notifier.memorySubtract),
-                  ],
-                ],
+              child: UtilityStrip(
+                leading: CalcKeyButton(
+                  label: 'f(x)',
+                  tone: _quickOpen ? KeyTone.active : KeyTone.function,
+                  fontSize: 13,
+                  radius: 12,
+                  semanticLabel: _quickOpen ? 'Hide the scientific keys' : 'Show the scientific keys',
+                  onPressed: () => setState(() => _quickOpen = !_quickOpen),
+                ),
               ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: !_quickOpen
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: EdgeInsets.only(top: gap),
+                      child: SizedBox(
+                        height: strip * 1.12,
+                        child: KeyGrid(
+                          gap: 5,
+                          rows: <List<Widget>>[
+                            <Widget>[
+                              function('sin'),
+                              function('cos'),
+                              function('tan'),
+                              function('ln'),
+                              quick('square root', const TemplateKey(TemplateKind.squareRoot),
+                                  (c) => KeyLegend('√x', color: c, size: 15)),
+                              quick('square', const TemplateKey(TemplateKind.square),
+                                  (c) => KeyLegend('x', sup: '2', color: c, size: 15)),
+                              quick('power', const TemplateKey(TemplateKind.power),
+                                  (c) => KeyLegend('x', sup: 'y', color: c, size: 15)),
+                              quick('pi', const AtomKey('π', AtomKind.constant),
+                                  (c) => KeyLegend('π', color: c, size: 15)),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
             ),
             SizedBox(height: gap),
             Expanded(
@@ -108,13 +148,16 @@ class StandardTabView extends ConsumerWidget {
                       semanticLabel: 'All clear',
                       onPressed: () => notifier.press(const ClearKey()),
                     ),
-                    CalcKeyButton(
-                      label: '( )',
-                      tone: KeyTone.function,
-                      fontSize: 20,
-                      semanticLabel: 'Parenthesis',
-                      onPressed: () => notifier.press(smartParenthesis(ref.read(calculatorProvider))),
-                      onLongPress: () => notifier.press(const AtomKey('(', AtomKind.paren)),
+                    _Badged(
+                      count: openParentheses,
+                      child: CalcKeyButton(
+                        label: '( )',
+                        tone: KeyTone.function,
+                        fontSize: 20,
+                        semanticLabel: 'Parenthesis',
+                        onPressed: () => notifier.press(StandardTabView.smartParenthesis(ref.read(calculatorProvider))),
+                        onLongPress: () => notifier.press(const AtomKey('(', AtomKind.paren)),
+                      ),
                     ),
                     CalcKeyButton(
                       label: '%',
@@ -156,4 +199,45 @@ class StandardTabView extends ConsumerWidget {
       },
     );
   }
+}
+
+/// Puts a small counter on the top right corner of a key while [count] is
+/// positive (parentheses that are still open).
+class _Badged extends StatelessWidget {
+  const _Badged({required this.count, required this.child});
+
+  final int count;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          child,
+          if (count > 0)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IgnorePointer(
+                child: Semantics(
+                  label: '$count open',
+                  excludeSemantics: true,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 16),
+                    height: 16,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: AppColors.keyBadge, borderRadius: BorderRadius.circular(8)),
+                    child: Text(
+                      '$count',
+                      maxLines: 1,
+                      style: AppTypography.ui(
+                          size: 10, weight: AppWeight.strong, color: AppColors.keyEqualsText, height: 1.1),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
 }
