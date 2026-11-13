@@ -6,9 +6,9 @@ exact fractions for as long as possible and 50-digit decimals after that, and
 every evaluation runs off the UI thread and can be cancelled.
 
 <p>
-  <img src="docs/screenshots/standard.png" width="19%" alt="Standard tab: a fraction with a square root in the numerator, result 0.5 and 1/2">
+  <img src="docs/screenshots/standard.png" width="19%" alt="Standard tab with the row of quick function keys open; the parenthesis that is still open is drawn as a ghost and counted on its key">
   <img src="docs/screenshots/scientific.png" width="19%" alt="Scientific tab: an integral plus a cube root times a power of e">
-  <img src="docs/screenshots/lab_solver.png" width="19%" alt="Lab tab: quadratic solver with exact roots">
+  <img src="docs/screenshots/lab_solver.png" width="19%" alt="Lab tab: the display folded into a bar, the quadratic solver with exact roots below it">
   <img src="docs/screenshots/convert.png" width="19%" alt="Convert tab: 12.5 metres in other length units">
   <img src="docs/screenshots/history.png" width="19%" alt="History tab: the tape of past calculations">
 </p>
@@ -36,26 +36,35 @@ The pictures are rendered by the screenshot test of this repository
 
 **Display.** One card stays on top of every tab. It shows the expression the
 way it is written on paper, a live preview of the result while typing, and the
-committed result with its second form (`0.5` and `1/2`). A line that gets too
-long first shrinks, then scrolls with faded edges; the caret stays in view.
-Badges switch the angle unit (DEG, RAD, GRAD), real or complex results, and how
-`6÷2(1+2)` is read (TI: 9, CASIO: 1). Undo, redo, copy and paste sit next to
-them; pasted text such as `1,250.50 × 2³ − √16` is cleaned up and turned into
-editable structure. Pulling the handle down opens the recent history.
+committed result with its second form (`0.5` and `1/2`). An empty line shows a
+muted `0`, and a parenthesis that has not been closed yet is drawn as a ghost
+`)` where it will be closed. A line that gets too long first shrinks, then
+scrolls with faded edges; the caret stays in view. Badges switch the angle
+unit (DEG, RAD, GRAD), real or complex results, and how `6÷2(1+2)` is read
+(TI: 9, CASIO: 1); the last two say in a short message what they have just
+switched to. Undo, redo, copy and paste sit next to them; pasted text such as
+`1,250.50 × 2³ − √16` is cleaned up and turned into editable structure.
+Pulling the handle down opens the recent history.
+
+Lab, Convert and History have their own input and read-out. On these tabs the
+card folds into a one-line bar that keeps the badges and shows the last
+answer, and the tab gets the room. A tap on the bar opens the display where
+it is; the chevron folds it again, and so does the next tab change.
 
 **Five tabs.**
 
 | Tab | Contents |
 | --- | --- |
-| Standard | Digits, `+ − × ÷`, `%`, a parenthesis key that opens or closes as needed, cursor keys for moving inside the 2D expression, `MC MR M+ M−`. |
-| Scientific | Trigonometric, hyperbolic and inverse functions, `ln`, `log`, `log₂`, `logₐ`, powers and roots, fraction and absolute-value templates, `π`, `e`, `φ`, `i`, `×10ˣ`, factorial and gamma, `nCr`, `nPr`, `mod`, definite integral and derivative, variables `x`, `y`, `M`, `Ans`. `INV` and `HYP` change the key faces and release after one key. |
-| Lab | **Solver:** quadratic and cubic equations; rational roots stay exact fractions, complex roots are shown. **Matrix:** two matrices up to 4×4; sum, difference, product, determinant, inverse, transpose, rank, trace. **Table:** values of the current expression over a range. **Stats:** one-variable summary (mean, sums, both standard deviations, quartiles) and two-variable linear regression. **Base-N:** HEX, DEC, OCT, BIN at 8, 16, 32 or 64 bits, signed or unsigned, with `AND OR XOR NOT << >>`. |
-| Convert | Twelve categories (length, mass, temperature, area, volume, speed, time, data, pressure, energy, power, angle), all units of a category at once, and 24 physical constants (CODATA 2022) that can be inserted into the expression. |
-| History | Searchable tape of past calculations stored in SQLite: a tap brings an expression back for editing, `Ans` inserts its result. Variable slots (`Ans`, `M`, `A`–`F`, `x`, `y`) can be inserted, filled from the last answer or cleared. |
+| Standard | Digits, `+ − × ÷`, `%`, a parenthesis key that opens or closes as needed and counts the groups that are still open, cursor keys for moving inside the 2D expression, `MC MR M+ M−` (`MC` and `MR` are outlined while the memory holds a value). `f(x)` opens a row with `sin cos tan ln √x x² xʸ π`, so that a single function does not need a tab change. |
+| Scientific | The cursor and memory keys, then six rows of five: trigonometric, hyperbolic and inverse functions, `ln`, `log`, `log₂`, `logₐ`, powers and roots, fraction and absolute-value templates, `π`, `e`, `φ`, `i`, `×10ˣ`, factorial and gamma, `nCr`, `nPr`, `mod`, `gcd`, `lcm`, definite integral and derivative, variables `x`, `y`, `M`, `Ans`, and its own `AC`, `⌫` and `=`. `INV` and `HYP` change the key faces and release after one key; the corner of a key shows what `INV` turns it into. `,` moves on to the next argument of a function. |
+| Lab | **Solver:** quadratic and cubic equations; rational roots stay exact fractions, complex roots are shown. **Matrix:** two matrices up to 4×4; sum, difference, product, determinant, inverse, transpose, rank, trace. **Table:** values of the current expression over a range. **Stats:** one-variable summary (mean, sums, both standard deviations, quartiles) and two-variable linear regression. **Base-N:** HEX, DEC, OCT, BIN at 8, 16, 32 or 64 bits, signed or unsigned, with `AND OR XOR NOT << >>`; a tap on a base makes it the one being typed, and digits it does not have are switched off. Roots, scalar matrix results, statistics and the decimal Base-N value have a `↗` that puts them into the main expression. |
+| Convert | Twelve categories (length, mass, temperature, area, volume, speed, time, data, pressure, energy, power, angle), all units of a category at once (an empty field counts as 0, and `0 °C` is `32 °F`), a `↗` on every line that puts its value into the main expression, and 24 physical constants (CODATA 2022); a tap on a constant inserts it into the expression. |
+| History | Searchable tape of past calculations stored in SQLite: a tap brings an expression back for editing, `Ans` inserts its result, and both return to the keypad; a long press opens the whole expression and result with copy buttons. Variable slots (`Ans`, `M`, `A`–`F`, `x`, `y`) can be inserted, filled from the last answer or cleared. |
 
 In portrait one tab is visible at a time; from 600 dp of width the standard
-keypad and the display stay on screen next to the other tabs. A swipe on the
-display card or the tab bar changes the tab, a swipe on the keys never does.
+keypad and the display stay on screen next to the other tabs (and the display
+never folds). A swipe on the display card or the tab bar changes the tab, a
+swipe on the keys never does.
 
 **Also.** Hardware keyboards work (digits, `+ - * / ^ ( ) ! % .`, `=` or Enter,
 Backspace, Esc, arrows, `x`, `e`, `p` for π). The expression in progress, the
@@ -158,7 +167,7 @@ dart test test/domain/engine_verification_test.dart --plain-name "MathEngine"   
 dart test test/domain/engine_verification_test.dart                              # gate 2: all 24 cases, under 50 ms together
 dart test test/domain                                                            # the whole engine and editor suite; needs no Flutter
 flutter test                                                                     # gate 3: the above plus state, isolates and widgets
-CALC_SCREENSHOTS=1 flutter test test/screenshots                                 # renders 21 PNGs into build/screenshots/
+CALC_SCREENSHOTS=1 flutter test test/screenshots                                 # renders 28 PNGs into build/screenshots/
 ```
 
 | Suite | What it covers |
@@ -168,13 +177,15 @@ CALC_SCREENSHOTS=1 flutter test test/screenshots                                
 | `test/presentation/calculator_notifier_test.dart` | Live preview, what the next key does after `=`, errors, undo, memory, variables, persistence of modes and draft. |
 | `test/presentation/evaluator_isolate_pool_test.dart` | Evaluation on a worker isolate, cancellation by newer input, the 250 ms preview budget, the watchdog that replaces a stuck worker. |
 | `test/presentation/calculator_shell_test.dart`, `display_card_test.dart` | Keys, hardware keyboard, gestures, every tab and Lab mode at four screen sizes without overflow, shrinking and scrolling of long lines, screen-reader labels. |
+| `test/presentation/ux_improvements_test.dart` | The changes of 3.1: folding and reopening of the display, mode messages, placeholder and ghost parentheses, the quick function row, the parenthesis counter, the scientific grid with its corner legends, sending values from Lab, Convert and History to the expression, Base-N on a small phone. |
 | `test/screenshots/screenshots_test.dart` | Skipped unless `CALC_SCREENSHOTS=1`; then renders the screens at phone, small-phone, landscape and tablet sizes. |
 
 `.github/scripts/emulator_smoke.sh <apk> <out-dir>` drives a release APK on a
 running emulator or device through `adb`: typed input, `=`, `Ans`, `5000!`,
-rotation, all tabs, and a forced stop followed by a restart, with a
-screenshot after every step. It fails when the app is no longer running or
-when logcat shows a Flutter error or a crash. It does not read the screen:
+rotation, all tabs, the folded display and its reopening, and a forced stop
+followed by a restart, with a screenshot after every step. It fails when the
+app is no longer running, when logcat shows a Flutter error or a crash, or
+when a tap on a tab leaves the screen as it was. It does not read the screen:
 whether the results are right and the history is back after the restart is
 for a person to see in the screenshots.
 
@@ -316,7 +327,6 @@ what was done.
   `×` and `÷` in CASIO mode. A power binds tighter than any implied product.
 - **Minus sign.** JetBrains Mono draws U+2212 as narrow as a hyphen, so the
   display shows an en dash for it. Stored and copied text is unaffected.
-- **Empty line.** Shows only the caret, no placeholder.
 - **Repeated `=`.** Pressing `=` again on a committed result adds no second
   history line.
 - **Converter.** Starts from the base unit of a category (°C for
@@ -329,13 +339,48 @@ what was done.
 - **Formatting.** `dart format` with a page width of 120
   (`analysis_options.yaml`).
 
+### The UX review (version 3.1)
+
+Version 3.1 applies a written review of the layout,
+`ux_and_layout_improvements_blueprint.md` (not part of this repository
+either): the folding display, the mode messages, the placeholder and the
+ghost parentheses, the quick function row and the parenthesis counter, the
+rearranged scientific grid, and the paths from Lab, Convert and History back
+into the expression. Where the result differs from that document:
+
+- **Functions the engine does not have.** The review puts `Σ`/`Π`, mixed
+  fractions (`a b/c`), `Rand`, the polar `∠`, `ENG` and `CALC` on the
+  scientific grid. They are not part of this version; each needs engine work
+  and tests of its own. Their places hold functions that existed already:
+  the angle-unit key (for `Σ`/`Π`), `x⁻¹` (for `a b/c`), `°` (for `Rand`),
+  `log₂` (for `∠`), `logₐ` (for `ENG`) and `gcd`/`lcm` (for `CALC`). `mod`
+  is the second face of `|x|` and `Γ` that of `x!`.
+- **The folded display opens in place.** The review allows a tap on the bar
+  to jump to the Standard tab or to expand the display; it expands, so the
+  tab in use stays. The bar is 56 dp high.
+- **Mode messages.** Without a Material layer there is no `SnackBar`. The
+  message is a widget of the app that floats over the keypad for 1.5 s and
+  lets touches through. The texts are shorter than in the review, and the
+  badge keeps its name `TI`.
+- **Sending a value.** A `↗` at the end of the line instead of a "Use in
+  Calc" chip, which the narrow lines have no room for. A negative or complex
+  value is inserted in parentheses.
+- **Open parentheses inside a template.** A parenthesis left open in an
+  exponent, a root or a fraction is closed where that slot ends, which is
+  also where its ghost is drawn: `2^(1+1` followed by `×3` outside the
+  exponent is `2^(1+1) × 3`.
+- **`,` on the scientific grid.** Inside a function with several arguments
+  it moves the caret to the next one; elsewhere it types a separator.
+- **Converter.** There was no special case for zero: the dashes came from
+  an empty field, which now counts as 0.
+
 ## What has been verified, and what has not
 
 On CI, with the code as it is in this commit:
 
 - `flutter analyze` reports no issues and `dart format` no changes.
 - All 24 blueprint cases pass and take 10 to 15 ms together (budget 50 ms).
-- `flutter test`: 100 tests pass (62 of them engine and editor tests that
+- `flutter test`: 127 tests pass (68 of them engine and editor tests that
   also run under plain `dart test`); the 4 screenshot tests are skipped
   unless requested and pass when run.
 - The release APKs build, and `apksigner` accepts them.
@@ -357,6 +402,7 @@ Not verified:
   produces today are debug-signed.
 - Screen readers: labels are checked by tests, TalkBack itself was not run.
 
-The earlier WebView-based app (v3.1.x) was removed from the tree in favour of
-this implementation. Its history remains in git, and the `gh-pages` branch
-still serves its web demo.
+The earlier WebView-based app was removed from the tree in favour of this
+implementation. Its releases were numbered 3.1.x as well: the tag `v3.1` is
+one of them and is not version 3.1.0 of this app. Its history remains in git,
+and the `gh-pages` branch still serves its web demo.
