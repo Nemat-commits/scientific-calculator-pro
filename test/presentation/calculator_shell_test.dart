@@ -7,6 +7,7 @@ import 'package:modern_scientific_calculator/presentation/tabs/advanced_lab_tab_
 import 'package:modern_scientific_calculator/presentation/tabs/scientific_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/standard_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/unit_converter_tab_view.dart';
+import 'package:modern_scientific_calculator/presentation/widgets/lab_widgets.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/persistent_display_card.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/segmented_tab_bar.dart';
 
@@ -227,7 +228,8 @@ void main() {
     await tapAll(tester, <Finder>[labKey('2'), labKey('⏎'), labKey('5'), labKey('⏎'), labKey('−'), labKey('3')]);
     await tester.tap(find.text('Solve').hitTestable().first);
     await settle(tester);
-    expect(find.text('–3'), findsOneWidget, reason: 'results are drawn with the operator-width minus');
+    // Results are drawn with the operator-width minus.
+    expect(find.descendant(of: find.byType(ValueRow), matching: find.text('–3')), findsOneWidget);
     expect(find.text('1/2  =  0.5'), findsOneWidget);
   });
 }

@@ -150,6 +150,24 @@ void main() {
       expect(calc('∫(2, 5, 7)'), '21');
       expect(calc('∫(0, 1, 3x^2)'), '1');
     });
+
+    test('a result built on a numerical method shows only the digits that method is good for', () {
+      // Exact: π/2 + 3·e^(−1/2) = 3.39038830593279689004…; the integral is
+      // known to 14 digits, so the 20 digits after them would be noise.
+      expect(calc('∫(0, π, sin(x)^2) + ∛27 × e^(-1/2)', rad), '3.3903883059328');
+      expect(calc('d/dx(x^3, x=2) + 1/3'), '12.333333333333');
+      // A singular endpoint may cost digits, it never adds any.
+      final singular = calc('2 × ∫(0, 1, 1/√x) + 1/3');
+      expect(singular, startsWith('4.33'));
+      expect(singular.length, lessThanOrEqualTo(15));
+      // `Ans` receives the same trimmed number.
+      final value = MathEngine.evaluateText('∫(0, 1, x^2) + 1/7').value;
+      expect(value, isA<DecimalVal>());
+      expect(Dec.digitCount(Dec.parts((value as DecimalVal).value).m), lessThanOrEqualTo(14));
+      // Nothing numerical involved: the full read-out.
+      expect(calc('3 × e^(-1/2)'), '1.819591979137900270811398604973541');
+      expect(calc('1/3 + 1/7'), '0.4761904761904761904761904761904762');
+    });
   });
 
   group('MathPrint controller', () {

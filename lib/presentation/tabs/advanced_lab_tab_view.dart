@@ -489,7 +489,7 @@ class _TableViewState extends ConsumerState<_TableView> {
               Text('f(x) = ', style: AppTypography.mono(size: 15, weight: AppWeight.medium, color: AppColors.textMuted)),
               Expanded(
                 child: Text(
-                  expression.isEmpty ? 'type a formula with x on the keypad' : expression,
+                  expression.isEmpty ? 'type a formula with x on the keypad' : AppTypography.signs(expression),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: expression.isEmpty

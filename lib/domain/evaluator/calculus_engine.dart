@@ -153,10 +153,19 @@ abstract final class CalculusEngine {
   /// stalls, the substitution `x(t) = a + (b−a)(3t² − 2t³)`,
   /// `dx = 6(b−a)·t(1−t)·dt` is applied (repeatedly if necessary), which
   /// flattens integrable endpoint singularities such as `∫₀¹ dx/√x`.
-  static Decimal integrate(RealFunction f, Decimal a, Decimal b, {CancellationToken? token}) {
+  ///
+  /// A slowly converging integral is returned with fewer than
+  /// [resultPrecision] digits; [onPrecision] is then told how many.
+  static Decimal integrate(
+    RealFunction f,
+    Decimal a,
+    Decimal b, {
+    CancellationToken? token,
+    void Function(int digits)? onPrecision,
+  }) {
     final order = Dec.compare(a, b);
     if (order == 0) return Dec.zero;
-    if (order > 0) return Dec.neg(integrate(f, b, a, token: token));
+    if (order > 0) return Dec.neg(integrate(f, b, a, token: token, onPrecision: onPrecision));
     final width = Dec.sub(b, a);
     final singular = _isSingular(f, a) || _isSingular(f, b);
 
@@ -250,7 +259,9 @@ abstract final class CalculusEngine {
     if (Dec.compare(error, Dec.mul(_acceptTolerance, scale)) <= 0) {
       // Report only the digits the last estimates agree on.
       final agreed = Dec.adjExp(scale) - Dec.adjExp(error) - 1;
-      return finish(best.value!, scale, agreed < 3 ? 3 : (agreed > resultPrecision ? resultPrecision : agreed));
+      final digits = agreed < 3 ? 3 : (agreed > resultPrecision ? resultPrecision : agreed);
+      onPrecision?.call(digits);
+      return finish(best.value!, scale, digits);
     }
     throw const DomainError('Integral does not converge');
   }

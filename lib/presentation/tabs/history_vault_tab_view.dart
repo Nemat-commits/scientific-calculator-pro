@@ -146,7 +146,7 @@ class HistoryTile extends ConsumerWidget {
                     children: <Widget>[
                       Expanded(
                         child: Text(
-                          entry.expressionText,
+                          AppTypography.signs(entry.expressionText),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.mono(size: 12.5, color: AppColors.textSecondary),

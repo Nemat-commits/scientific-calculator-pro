@@ -54,6 +54,10 @@ final class AstEvaluator {
   static final BigInt _b1 = BigInt.one;
   static final RegExp _decimalLiteral = RegExp(r'^(\d+\.?\d*|\.\d+)(E[+-]?\d+)?$');
 
+  /// Significant digits the value being computed can be trusted to; `null`
+  /// while everything so far came from the 50-digit arithmetic.
+  int? _reliableDigits;
+
   /// Special display string of [value] (e.g. the `m × 10^E` form of a
   /// log-Stirling factorial), if it has one.
   String? displayOverrideFor(CalcValue value) => _displayOverrides[value];
@@ -61,13 +65,40 @@ final class AstEvaluator {
   /// Evaluates [node].
   CalcValue evaluate(AstNode node) {
     token.throwIfCancelled();
-    return _eval(node, null);
+    _reliableDigits = null;
+    return _trusted(_eval(node, null));
   }
 
   /// Evaluates [node] with `variable = value` bound on top of [variables].
   CalcValue evaluateWith(AstNode node, String variable, CalcValue value) {
     token.throwIfCancelled();
-    return _eval(node, _Scope(variable, value, null));
+    _reliableDigits = null;
+    return _trusted(_eval(node, _Scope(variable, value, null)));
+  }
+
+  void _limitDigits(int digits) {
+    final current = _reliableDigits;
+    if (current == null || digits < current) _reliableDigits = digits;
+  }
+
+  /// Cuts a result back to the digits it can be trusted to.
+  ///
+  /// `∫` and `d/dx` are numerical methods good for
+  /// [CalculusEngine.resultPrecision] digits. Whatever is computed from them
+  /// cannot be better than that: without this step
+  /// `∫(0, π, sin(x)²) + 3e^(−1/2)` would print 34 digits of which the first
+  /// 14 are right, and `Ans` would carry the noise into the next line.
+  CalcValue _trusted(CalcValue value) {
+    final digits = _reliableDigits;
+    if (digits == null || _displayOverrides[value] != null) return value;
+    return switch (value) {
+      DecimalVal(value: final d) => DecimalVal(Dec.round(d, digits)),
+      ComplexVal(:final real, :final imag) => ComplexVal(Dec.round(real, digits), Dec.round(imag, digits)),
+      MatrixVal(:final grid) => MatrixVal(<List<Decimal>>[
+          for (final row in grid) <Decimal>[for (final cell in row) Dec.round(cell, digits)],
+        ]),
+      RationalVal() || BitwiseVal() => value,
+    };
   }
 
   // ------------------------------------------------------------------ walker
@@ -118,11 +149,19 @@ final class AstEvaluator {
       case DerivativeNode(:final body, :final point, :final variable):
         final x0 = _real(_eval(point, scope), 'The point of a derivative');
         final d = CalculusEngine.derivative((x) => _realBody(body, variable, x, scope), x0, token: token);
+        _limitDigits(CalculusEngine.resultPrecision);
         return _dv(d);
       case IntegralNode(:final lower, :final upper, :final integrand, :final variable):
         final a = _real(_eval(lower, scope), 'The lower bound');
         final b = _real(_eval(upper, scope), 'The upper bound');
-        final v = CalculusEngine.integrate((x) => _realBody(integrand, variable, x, scope), a, b, token: token);
+        final v = CalculusEngine.integrate(
+          (x) => _realBody(integrand, variable, x, scope),
+          a,
+          b,
+          token: token,
+          onPrecision: _limitDigits,
+        );
+        _limitDigits(CalculusEngine.resultPrecision);
         return _dv(v);
     }
   }

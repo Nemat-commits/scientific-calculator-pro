@@ -133,9 +133,24 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
     );
   }
 
+  /// `m_e` is drawn the way the display draws it: mₑ.
+  static Widget _constantSymbol(String symbol) {
+    final style = AppTypography.mono(size: 13.5, weight: AppWeight.medium, color: AppColors.mathConstant);
+    final split = symbol.indexOf('_');
+    if (split <= 0 || split == symbol.length - 1) return Text(symbol, maxLines: 1, style: style);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: <Widget>[
+        Text(symbol.substring(0, split), maxLines: 1, style: style),
+        Transform.translate(
+          offset: const Offset(0.5, 2.5),
+          child: Text(symbol.substring(split + 1), maxLines: 1, style: style.copyWith(fontSize: 9.5)),
+        ),
+      ],
+    );
+  }
+
   Widget _constantRow(PhysicalConstant constant) {
-    final split = constant.symbol.indexOf('_');
-    final symbol = split < 0 ? constant.symbol : '${constant.symbol.substring(0, split)}(${constant.symbol.substring(split + 1)})';
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _insertConstant(constant),
@@ -149,10 +164,7 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
         ),
         child: Row(
           children: <Widget>[
-            SizedBox(
-              width: 52,
-              child: Text(symbol, maxLines: 1, style: AppTypography.mono(size: 13.5, weight: AppWeight.medium, color: AppColors.mathConstant)),
-            ),
+            SizedBox(width: 52, child: _constantSymbol(constant.symbol)),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
