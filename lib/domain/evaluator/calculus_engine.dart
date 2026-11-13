@@ -215,9 +215,16 @@ abstract final class CalculusEngine {
         // Error of the finer rule, extrapolated from the observed decay. The
         // coarser pair must already agree to ~7 digits, which rules out a
         // lucky coincidence of two poor estimates.
+        //
+        // Two estimates can agree to the last working digit (a constant, an
+        // odd function over a symmetric interval, sin² over a full period):
+        // then there is no decay to extrapolate and the difference itself -
+        // zero - is the prediction.
         var predicted = diff;
-        final ratio = Dec.div(prevDiff, diff, 20);
-        if (Dec.compare(ratio, Dec.two) > 0) predicted = Dec.div(diff, Dec.sub(ratio, Dec.one), 20);
+        if (!Dec.isZero(diff)) {
+          final ratio = Dec.div(prevDiff, diff, 20);
+          if (Dec.compare(ratio, Dec.two) > 0) predicted = Dec.div(diff, Dec.sub(ratio, Dec.one), 20);
+        }
         if (Dec.compare(predicted, Dec.mul(_tolerance, scale)) <= 0 &&
             Dec.compare(prevDiff, Dec.mul(_looseTolerance, scale)) <= 0 &&
             Dec.compare(crossCheck(ladder), Dec.mul(_crossTolerance, scale)) <= 0) {

@@ -316,7 +316,7 @@ class _MatrixViewState extends State<_MatrixView> {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          NumberFormatter.formatDec(cell, prec: 8).replaceAll('-', '−'),
+                          AppTypography.signs(NumberFormatter.formatDec(cell, prec: 8)),
                           style: AppTypography.mono(size: 15, weight: AppWeight.medium),
                         ),
                       ),
@@ -520,7 +520,8 @@ class _TableViewState extends ConsumerState<_TableView> {
           if (_error != null) _errorText(_error!),
           if (rows != null) ...<Widget>[
             const SizedBox(height: 8),
-            for (final row in rows) ValueRow('x = ${row.x.replaceAll('-', '−')}', (row.value ?? row.error!).replaceAll('-', '−')),
+            for (final row in rows)
+              ValueRow('x = ${row.x.replaceAll('-', '−')}', row.value ?? row.error!, numeric: row.value != null),
             if (rows.length >= FunctionTableEngine.maxRows)
               _errorText('Stopped after ${FunctionTableEngine.maxRows} rows'),
           ],
@@ -683,7 +684,7 @@ class _StatsViewState extends State<_StatsView> {
                           border: Border.all(color: AppColors.panelBorder),
                         ),
                         child: Text(
-                          _paired ? '(${_data[i].$1}, ${_data[i].$2}) ×' : '${_data[i].$1} ×',
+                          AppTypography.signs(_paired ? '(${_data[i].$1}, ${_data[i].$2}) ×' : '${_data[i].$1} ×'),
                           style: AppTypography.mono(size: 12.5, color: AppColors.textSecondary),
                         ),
                       ),
@@ -791,7 +792,7 @@ class _BaseNViewState extends State<_BaseNView> {
     String word(int radix) {
       if (value == null) return '—';
       final text = NumberFormatter.formatBitwise(value, radix: radix);
-      return radix == 10 ? NumberFormatter.groupThousands(text).replaceAll('-', '−') : NumberFormatter.groupWord(text);
+      return radix == 10 ? NumberFormatter.groupThousands(text) : NumberFormatter.groupWord(text);
     }
 
     return LayoutBuilder(
@@ -827,7 +828,7 @@ class _BaseNViewState extends State<_BaseNView> {
                         border: Border.all(color: _error == null ? AppColors.accentSoft : AppColors.error),
                       ),
                       child: Text(
-                        _input.isEmpty ? '0' : _input,
+                        _input.isEmpty ? '0' : AppTypography.signs(_input),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,

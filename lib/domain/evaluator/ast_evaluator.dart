@@ -633,7 +633,9 @@ final class AstEvaluator {
         return _logBase(args[0], args[1]);
       case 'log2':
         final v = one();
-        if (v.isRealScalar && Dec.sign(_real(v, name)) > 0) return _dv(Transcendental.log2(_real(v, name), token: token));
+        if (v.isRealScalar && Dec.sign(_real(v, name)) > 0) {
+          return _dv(Transcendental.log2(_real(v, name), token: token));
+        }
         return divide(_ln(v), DecimalVal(MathConstants.ln2()));
       case 'exp':
         return _exp(one());

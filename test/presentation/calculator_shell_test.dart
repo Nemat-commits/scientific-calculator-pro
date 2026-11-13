@@ -227,7 +227,7 @@ void main() {
     await tapAll(tester, <Finder>[labKey('2'), labKey('⏎'), labKey('5'), labKey('⏎'), labKey('−'), labKey('3')]);
     await tester.tap(find.text('Solve').hitTestable().first);
     await settle(tester);
-    expect(find.text('-3'), findsOneWidget);
+    expect(find.text('–3'), findsOneWidget, reason: 'results are drawn with the operator-width minus');
     expect(find.text('1/2  =  0.5'), findsOneWidget);
   });
 }

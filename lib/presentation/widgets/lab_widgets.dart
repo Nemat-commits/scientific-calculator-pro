@@ -171,7 +171,7 @@ class LabField extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerRight,
                   child: Text(
-                    value.isEmpty ? hint : value,
+                    value.isEmpty ? hint : AppTypography.signs(value),
                     maxLines: 1,
                     style: AppTypography.mono(
                       size: 15,
@@ -274,12 +274,16 @@ class MiniKeypad extends StatelessWidget {
 
 /// `label  value` line of a result list.
 class ValueRow extends StatelessWidget {
-  const ValueRow(this.label, this.value, {super.key, this.onTap, this.emphasised = false});
+  const ValueRow(this.label, this.value, {super.key, this.onTap, this.emphasised = false, this.numeric = true});
 
   final String label;
   final String value;
   final VoidCallback? onTap;
   final bool emphasised;
+
+  /// Whether [value] is a number (drawn with the operator-width minus) rather
+  /// than a message.
+  final bool numeric;
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -296,7 +300,7 @@ class ValueRow extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerRight,
                   child: Text(
-                    value,
+                    numeric ? AppTypography.signs(value) : value,
                     maxLines: 1,
                     style: AppTypography.mono(
                       size: emphasised ? 16 : 14,

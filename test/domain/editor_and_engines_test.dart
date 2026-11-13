@@ -136,6 +136,22 @@ void main() {
     });
   });
 
+  group('Calculus', () {
+    const rad = MathContext(angleUnit: AngleUnit.rad);
+
+    test('integrals whose successive estimates agree exactly', () {
+      // sin² over a full period: every composite rule already returns π/2 to
+      // the last working digit, so refining the mesh changes nothing.
+      expect(calc('∫(0, π, sin(x)^2)', rad), '1.5707963267949');
+      expect(calc('∫(0, π, sin(x)^2) + 3', rad), '4.5707963267949');
+      expect(calc('∫(0, 1, 0)'), '0');
+      expect(calc('∫(0, 2, x - x)'), '0');
+      expect(calc('∫(-1, 1, x^3)'), '0');
+      expect(calc('∫(2, 5, 7)'), '21');
+      expect(calc('∫(0, 1, 3x^2)'), '1');
+    });
+  });
+
   group('MathPrint controller', () {
     test('typing and moving through a fraction', () {
       var s = keys(<CalcKey>[const TemplateKey(TemplateKind.fraction), digit('1'), down, digit('2')]);

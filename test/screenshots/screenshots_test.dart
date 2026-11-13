@@ -163,6 +163,7 @@ void main() {
       find.descendant(of: find.byType(UnitConverterTabView), matching: find.byType(ChoiceChips)),
       const Offset(-1200, 0),
     );
+    await settle(tester);
     await tapText('Constants');
     await capture(tester, '08_portrait_constants');
 
