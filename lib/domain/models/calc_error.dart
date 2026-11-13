@@ -71,7 +71,7 @@ sealed class CalcError implements Exception {
 
 /// The expression cannot be parsed.
 final class SyntaxError extends CalcError {
-  const SyntaxError(String message, {int? position}) : super(CalcErrorType.syntax, message, position: position);
+  const SyntaxError(String message, {super.position}) : super(CalcErrorType.syntax, message);
 }
 
 /// The operation is mathematically undefined for the given operand(s).

@@ -9,7 +9,6 @@ import 'package:modern_scientific_calculator/domain/editor/clipboard_sanitizer.d
 import 'package:modern_scientific_calculator/domain/editor/input_phase.dart';
 import 'package:modern_scientific_calculator/domain/editor/math_print_controller.dart';
 import 'package:modern_scientific_calculator/domain/evaluator/cancellation_token.dart';
-import 'package:modern_scientific_calculator/domain/evaluator/decimal_math.dart';
 import 'package:modern_scientific_calculator/domain/evaluator/number_formatter.dart';
 import 'package:modern_scientific_calculator/domain/math_engine.dart';
 import 'package:modern_scientific_calculator/domain/models/calc_error.dart';

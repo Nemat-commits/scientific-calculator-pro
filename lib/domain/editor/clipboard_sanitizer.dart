@@ -437,38 +437,71 @@ final class _Scanner {
     }
     final out = <EditorNode>[];
     var p = start;
-    while (p < end) {
-      EditorNode? call;
-      // longest function name that starts at p and is directly followed by "("
-      for (final stop in <int>[if (digitsEnd > end) digitsEnd, end]) {
-        if (stop <= p) continue;
-        final raw = chars.sublist(p, stop).join().toLowerCase();
+
+    // A call that starts at [from]: `name(` (the name may end in digits, as
+    // in log2), or a bare unary function directly followed by its operand.
+    EditorNode? callAt(int from) {
+      for (var stop = digitsEnd; stop > from + 1; stop--) {
+        if (stop > end && stop != digitsEnd) continue;
+        final raw = chars.sublist(from, stop).join().toLowerCase();
         final name = ClipboardSanitizer._aliases[raw] ?? raw;
+        if (!ClipboardSanitizer.functionNames.contains(name)) continue;
         var look = stop;
         while (look < chars.length && chars[look].trim().isEmpty) {
           look++;
         }
-        if (!ClipboardSanitizer.functionNames.contains(name)) continue;
-        if (look < chars.length && chars[look] == '(') {
-          pos = look;
-          call = _call(name);
-          break;
-        }
         final next = look < chars.length ? chars[look] : '';
+        if (next == '(' && stop >= end) {
+          pos = look;
+          return _call(name);
+        }
         final startsOperand = ClipboardSanitizer._isDigit(next) ||
             ClipboardSanitizer._isLetter(next) ||
             next == '.' ||
             next == 'π' ||
             next == '√';
-        if (_bareFunctions.contains(name) && startsOperand) {
+        if (stop <= end && _bareFunctions.contains(name) && startsOperand) {
           pos = look;
           final argument = operand();
-          call = name == 'sqrt'
+          return name == 'sqrt'
               ? RootNode(degree: EditorSequence.fresh(), radicand: EditorSequence.fresh(argument))
               : _function(name, <List<EditorNode>>[argument]);
-          break;
         }
       }
+      return null;
+    }
+
+    // Matrix variables of the lab: MatA, MatB, MatC.
+    bool isMatrixAt(int from) =>
+        end - from >= 4 && chars.sublist(from, from + 3).join() == 'Mat' && 'ABC'.contains(chars[from + 3]);
+
+    bool isWordAt(int from) {
+      final lower = chars.sublist(from, end).join().toLowerCase();
+      return lower.startsWith('ans') || lower.startsWith('pi') || lower.startsWith('phi') || isMatrixAt(from);
+    }
+
+    // Prose ("price", "total") is not part of a formula: a run of four or
+    // more letters that contains no call and no named constant is dropped.
+    if (radix == 10 && end - start >= 4) {
+      var meaningful = false;
+      final probe = pos;
+      for (var q = start; q < end && !meaningful; q++) {
+        if (isWordAt(q)) meaningful = true;
+        for (var stop = digitsEnd; stop > q + 1 && !meaningful; stop--) {
+          if (stop > end && stop != digitsEnd) continue;
+          final raw = chars.sublist(q, stop).join().toLowerCase();
+          if (ClipboardSanitizer.functionNames.contains(ClipboardSanitizer._aliases[raw] ?? raw)) meaningful = true;
+        }
+      }
+      pos = probe;
+      if (!meaningful) {
+        pos = end;
+        return out;
+      }
+    }
+
+    while (p < end) {
+      final call = callAt(p);
       if (call != null) {
         out.add(call);
         return out;
@@ -485,7 +518,10 @@ final class _Scanner {
           continue;
         }
       }
-      if (lower.startsWith('ans')) {
+      if (isMatrixAt(p)) {
+        out.add(AtomNode(chars.sublist(p, p + 4).join(), AtomKind.variable));
+        p += 4;
+      } else if (lower.startsWith('ans')) {
         out.add(const AtomNode('Ans', AtomKind.variable));
         p += 3;
       } else if (lower.startsWith('phi')) {
