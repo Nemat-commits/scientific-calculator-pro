@@ -8,6 +8,7 @@ import 'package:modern_scientific_calculator/domain/editor/cursor_path.dart';
 import 'package:modern_scientific_calculator/domain/editor/input_phase.dart';
 import 'package:modern_scientific_calculator/domain/editor/math_print_controller.dart';
 import 'package:modern_scientific_calculator/domain/evaluator/algebra_solver_engine.dart';
+import 'package:modern_scientific_calculator/domain/evaluator/calculus_engine.dart';
 import 'package:modern_scientific_calculator/domain/evaluator/decimal_math.dart';
 import 'package:modern_scientific_calculator/domain/evaluator/number_formatter.dart';
 import 'package:modern_scientific_calculator/domain/evaluator/unit_converter_engine.dart';
@@ -151,22 +152,52 @@ void main() {
       expect(calc('∫(0, 1, 3x^2)'), '1');
     });
 
-    test('a result built on a numerical method shows only the digits that method is good for', () {
+    test('a result built on a numerical method shows only the digits it can be trusted to', () {
       // Exact: π/2 + 3·e^(−1/2) = 3.39038830593279689004…; the integral is
       // known to 14 digits, so the 20 digits after them would be noise.
       expect(calc('∫(0, π, sin(x)^2) + ∛27 × e^(-1/2)', rad), '3.3903883059328');
       expect(calc('d/dx(x^3, x=2) + 1/3'), '12.333333333333');
+      // `Ans` receives the same number, not the 50-digit one.
+      final value = MathEngine.evaluateText('∫(0, 1, x^2) + 1/7').value;
+      expect(value, isA<DecimalVal>());
+      expect(Dec.digitCount(Dec.parts((value as DecimalVal).value).m), lessThanOrEqualTo(14));
       // A singular endpoint may cost digits, it never adds any.
       final singular = calc('2 × ∫(0, 1, 1/√x) + 1/3');
       expect(singular, startsWith('4.33'));
       expect(singular.length, lessThanOrEqualTo(15));
-      // `Ans` receives the same trimmed number.
-      final value = MathEngine.evaluateText('∫(0, 1, x^2) + 1/7').value;
-      expect(value, isA<DecimalVal>());
-      expect(Dec.digitCount(Dec.parts((value as DecimalVal).value).m), lessThanOrEqualTo(14));
-      // Nothing numerical involved: the full read-out.
+    });
+
+    test('how many digits survive depends on what was done with the numerical result', () {
+      // Adding an exact number moves the 14 digits, it does not remove any.
+      expect(calc('∫(0, 1, x) + 10^15'), '1000000000000000.5');
+      // Subtracting a close number leaves the rounding of the integral, which is not a result.
+      expect(calc('∫(0, π, sin(x)^2) - π/2', rad), '0');
+      // A numerical result that does not reach the answer costs nothing …
+      expect(calc('0 × ∫(0, 1, x) + 1/3'), '0.3333333333333333333333333333333333');
+      // … and neither does an expression without one.
       expect(calc('3 × e^(-1/2)'), '1.819591979137900270811398604973541');
       expect(calc('1/3 + 1/7'), '0.4761904761904761904761904761904762');
+    });
+
+    test('the engines report how far a result may be off', () {
+      Decimal? bound;
+      final third = CalculusEngine.integrate(
+        (x) => Dec.mul(x, x),
+        Dec.zero,
+        Dec.one,
+        onUncertainty: (b) => bound = b,
+      );
+      expect(NumberFormatter.formatDec(third), '0.33333333333333');
+      expect(bound, Dec.parse('1e-14'), reason: 'one unit of the 14th digit');
+
+      bound = null;
+      expect(CalculusEngine.integrate((x) => Dec.zero, Dec.zero, Dec.one, onUncertainty: (b) => bound = b), Dec.zero);
+      expect(bound, isNull, reason: 'the integral of 0 is exactly 0');
+
+      bound = null;
+      final slope = CalculusEngine.derivative((x) => Dec.mul(x, x), Dec.fromInt(3), onUncertainty: (b) => bound = b);
+      expect(NumberFormatter.formatDec(slope), '6');
+      expect(bound, Dec.parse('1e-13'));
     });
   });
 

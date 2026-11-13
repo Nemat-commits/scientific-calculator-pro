@@ -54,9 +54,17 @@ final class AstEvaluator {
   static final BigInt _b1 = BigInt.one;
   static final RegExp _decimalLiteral = RegExp(r'^(\d+\.?\d*|\.\d+)(E[+-]?\d+)?$');
 
-  /// Significant digits the value being computed can be trusted to; `null`
-  /// while everything so far came from the 50-digit arithmetic.
-  int? _reliableDigits;
+  /// Results of the numerical methods (`∫`, `d/dx`) of the running
+  /// evaluation with the distance each may be off by - those computed once,
+  /// outside the body of another numerical method.
+  final Map<AstNode, (Decimal, Decimal)> _numerical = Map<AstNode, (Decimal, Decimal)>.identity();
+
+  /// Nesting depth of `∫` / `d/dx` bodies being sampled.
+  int _sampling = 0;
+
+  /// Second pass of [_settled]: numerical results are replayed, moved by
+  /// their error bound.
+  bool _nudging = false;
 
   /// Special display string of [value] (e.g. the `m × 10^E` form of a
   /// log-Stirling factorial), if it has one.
@@ -65,40 +73,111 @@ final class AstEvaluator {
   /// Evaluates [node].
   CalcValue evaluate(AstNode node) {
     token.throwIfCancelled();
-    _reliableDigits = null;
-    return _trusted(_eval(node, null));
+    return _settled(() => _eval(node, null));
   }
 
   /// Evaluates [node] with `variable = value` bound on top of [variables].
   CalcValue evaluateWith(AstNode node, String variable, CalcValue value) {
     token.throwIfCancelled();
-    _reliableDigits = null;
-    return _trusted(_eval(node, _Scope(variable, value, null)));
+    final scope = _Scope(variable, value, null);
+    return _settled(() => _eval(node, scope));
   }
 
-  void _limitDigits(int digits) {
-    final current = _reliableDigits;
-    if (current == null || digits < current) _reliableDigits = digits;
-  }
+  // ------------------------------------------------- precision of the result
 
-  /// Cuts a result back to the digits it can be trusted to.
+  /// Runs an evaluation and cuts the result back to the digits it can be
+  /// trusted to.
   ///
-  /// `∫` and `d/dx` are numerical methods good for
-  /// [CalculusEngine.resultPrecision] digits. Whatever is computed from them
-  /// cannot be better than that: without this step
-  /// `∫(0, π, sin(x)²) + 3e^(−1/2)` would print 34 digits of which the first
-  /// 14 are right, and `Ans` would carry the noise into the next line.
-  CalcValue _trusted(CalcValue value) {
-    final digits = _reliableDigits;
-    if (digits == null || _displayOverrides[value] != null) return value;
-    return switch (value) {
-      DecimalVal(value: final d) => DecimalVal(Dec.round(d, digits)),
-      ComplexVal(:final real, :final imag) => ComplexVal(Dec.round(real, digits), Dec.round(imag, digits)),
-      MatrixVal(:final grid) => MatrixVal(<List<Decimal>>[
-          for (final row in grid) <Decimal>[for (final cell in row) Dec.round(cell, digits)],
-        ]),
-      RationalVal() || BitwiseVal() => value,
-    };
+  /// `∫` and `d/dx` are numerical methods, good for about
+  /// [CalculusEngine.resultPrecision] digits, and whatever is computed from
+  /// them is no better: `∫(0, π, sin(x)²) + 3e^(−1/2)` would print 34 digits
+  /// of which 14 are right, and `Ans` would carry the other 20 into the next
+  /// line. How much of the final value is affected depends on what happened
+  /// to the numerical result on the way - adding 512 costs nothing,
+  /// subtracting a close number costs nearly everything - so it is measured:
+  /// the expression is evaluated a second time with every numerical result
+  /// moved by its error bound, and the digits the two runs share are kept.
+  /// The second run reuses the numerical results; it only repeats the
+  /// arithmetic around them.
+  CalcValue _settled(CalcValue Function() run) {
+    _numerical.clear();
+    _sampling = 0;
+    _nudging = false;
+    final value = run();
+    if (_displayOverrides[value] != null || !_numerical.values.any((r) => !Dec.isZero(r.$2))) return value;
+    CalcValue? nudged;
+    _nudging = true;
+    try {
+      nudged = run();
+    } on CancelledEvaluationError {
+      rethrow;
+    } on CalcError {
+      // The moved value left the domain (the root of a result that was
+      // exactly 0, ...). `nudged` stays null: fall back to the precision of
+      // the method.
+    } finally {
+      _nudging = false;
+    }
+    return _shared(value, nudged);
+  }
+
+  /// [value] reduced to what it has in common with [nudged].
+  static CalcValue _shared(CalcValue value, CalcValue? nudged) {
+    switch (value) {
+      case DecimalVal(value: final d):
+        final other = switch (nudged) {
+          DecimalVal(value: final n) => n,
+          RationalVal(value: final n) => Dec.fromRational(n),
+          _ => null,
+        };
+        return DecimalVal(_sharedDigits(d, other));
+      case ComplexVal(:final real, :final imag):
+        final other = nudged is ComplexVal ? nudged : null;
+        return ComplexVal(_sharedDigits(real, other?.real), _sharedDigits(imag, other?.imag));
+      case MatrixVal(:final grid):
+        final other = nudged is MatrixVal && nudged.rows == grid.length && nudged.cols == grid.first.length
+            ? nudged.grid
+            : null;
+        return MatrixVal(<List<Decimal>>[
+          for (var r = 0; r < grid.length; r++)
+            <Decimal>[for (var c = 0; c < grid[r].length; c++) _sharedDigits(grid[r][c], other?[r][c])],
+        ]);
+      case RationalVal() || BitwiseVal():
+        return value;
+    }
+  }
+
+  /// The leading digits of [value] that moving it to [nudged] leaves alone,
+  /// down to the digit the move shows up in. Zero when the move is larger
+  /// than the value itself: what remains of `∫(0, π, sin(x)²) − π/2` is the
+  /// rounding of the integral, not a number.
+  static Decimal _sharedDigits(Decimal value, Decimal? nudged) {
+    if (nudged == null) return Dec.round(value, CalculusEngine.resultPrecision);
+    final spread = Dec.abs(Dec.sub(nudged, value));
+    if (Dec.isZero(spread) || Dec.isZero(value)) return value;
+    final digits = Dec.adjExp(value) - Dec.adjExp(spread) + 1;
+    return digits < 1 ? Dec.zero : Dec.round(value, digits);
+  }
+
+  /// Second pass: the recorded result of [node], moved by its error bound.
+  CalcValue? _replayed(AstNode node) {
+    if (!_nudging || _sampling > 0) return null;
+    final known = _numerical[node];
+    return known == null ? null : _dv(Dec.add(known.$1, known.$2));
+  }
+
+  /// Runs a numerical [method] and records its result and error bound.
+  CalcValue _numericalResult(AstNode node, Decimal Function(UncertaintySink report) method) {
+    var bound = Dec.zero;
+    final Decimal value;
+    _sampling++;
+    try {
+      value = method((b) => bound = Dec.max(bound, b));
+    } finally {
+      _sampling--;
+    }
+    if (_sampling == 0 && !_nudging) _numerical[node] = (value, bound);
+    return _dv(value);
   }
 
   // ------------------------------------------------------------------ walker
@@ -147,22 +226,33 @@ final class AstEvaluator {
       case FunctionNode(:final name, :final args):
         return _call(name, <CalcValue>[for (final a in args) _eval(a, scope)]);
       case DerivativeNode(:final body, :final point, :final variable):
+        final replayed = _replayed(node);
+        if (replayed != null) return replayed;
         final x0 = _real(_eval(point, scope), 'The point of a derivative');
-        final d = CalculusEngine.derivative((x) => _realBody(body, variable, x, scope), x0, token: token);
-        _limitDigits(CalculusEngine.resultPrecision);
-        return _dv(d);
+        return _numericalResult(
+          node,
+          (report) => CalculusEngine.derivative(
+            (x) => _realBody(body, variable, x, scope),
+            x0,
+            token: token,
+            onUncertainty: report,
+          ),
+        );
       case IntegralNode(:final lower, :final upper, :final integrand, :final variable):
+        final replayed = _replayed(node);
+        if (replayed != null) return replayed;
         final a = _real(_eval(lower, scope), 'The lower bound');
         final b = _real(_eval(upper, scope), 'The upper bound');
-        final v = CalculusEngine.integrate(
-          (x) => _realBody(integrand, variable, x, scope),
-          a,
-          b,
-          token: token,
-          onPrecision: _limitDigits,
+        return _numericalResult(
+          node,
+          (report) => CalculusEngine.integrate(
+            (x) => _realBody(integrand, variable, x, scope),
+            a,
+            b,
+            token: token,
+            onUncertainty: report,
+          ),
         );
-        _limitDigits(CalculusEngine.resultPrecision);
-        return _dv(v);
     }
   }
 

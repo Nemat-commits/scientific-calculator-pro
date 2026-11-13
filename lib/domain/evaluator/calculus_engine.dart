@@ -7,7 +7,14 @@ import 'decimal_math.dart';
 /// A real function of one real variable.
 typedef RealFunction = Decimal Function(Decimal x);
 
+/// Receives how far a numerical result may be off (an absolute bound).
+typedef UncertaintySink = void Function(Decimal bound);
+
 /// Numerical differentiation and integration.
+///
+/// Both methods take an optional [UncertaintySink]. It is called when the
+/// returned value is not exact, with a bound of the error: one unit of the
+/// last reported digit, or more when the method itself got no further.
 abstract final class CalculusEngine {
   /// Significant digits of every returned result (`prec: 14`).
   static const int resultPrecision = 14;
@@ -77,8 +84,17 @@ abstract final class CalculusEngine {
     gaussWeights.length;
   }
 
+  /// One unit of the last of [digits] significant digits of [value].
+  static Decimal _lastDigitUnit(Decimal value, [int digits = resultPrecision]) =>
+      Dec.compose(BigInt.one, Dec.adjExp(value) - digits + 1);
+
   /// Richardson-extrapolated central difference with a cusp guard.
-  static Decimal derivative(RealFunction f, Decimal x0, {CancellationToken? token}) {
+  static Decimal derivative(
+    RealFunction f,
+    Decimal x0, {
+    CancellationToken? token,
+    UncertaintySink? onUncertainty,
+  }) {
     final ax = Dec.abs(x0);
     final h = Dec.mul(Dec.compare(ax, Dec.one) > 0 ? ax : Dec.one, _stepFactor);
     final h2 = Dec.mul(h, Dec.half);
@@ -109,11 +125,15 @@ abstract final class CalculusEngine {
     for (final v in <Decimal>[fp1, fm1]) {
       magnitude = Dec.max(magnitude, Dec.abs(v));
     }
-    if (!Dec.isZero(result)) {
-      final floorExp = (Dec.isZero(magnitude) ? 0 : Dec.adjExp(magnitude)) - Dec.adjExp(h) - 22;
-      if (Dec.adjExp(result) < floorExp) return Dec.zero;
+    if (Dec.isZero(result)) return Dec.zero;
+    final floorExp = (Dec.isZero(magnitude) ? 0 : Dec.adjExp(magnitude)) - Dec.adjExp(h) - 22;
+    if (Dec.adjExp(result) < floorExp) {
+      onUncertainty?.call(Dec.compose(BigInt.one, floorExp));
+      return Dec.zero;
     }
-    return Dec.round(result, resultPrecision);
+    final rounded = Dec.round(result, resultPrecision);
+    onUncertainty?.call(_lastDigitUnit(rounded));
+    return rounded;
   }
 
   static bool _isSingular(RealFunction f, Decimal x) {
@@ -155,17 +175,17 @@ abstract final class CalculusEngine {
   /// flattens integrable endpoint singularities such as `∫₀¹ dx/√x`.
   ///
   /// A slowly converging integral is returned with fewer than
-  /// [resultPrecision] digits; [onPrecision] is then told how many.
+  /// [resultPrecision] digits.
   static Decimal integrate(
     RealFunction f,
     Decimal a,
     Decimal b, {
     CancellationToken? token,
-    void Function(int digits)? onPrecision,
+    UncertaintySink? onUncertainty,
   }) {
     final order = Dec.compare(a, b);
     if (order == 0) return Dec.zero;
-    if (order > 0) return Dec.neg(integrate(f, b, a, token: token, onPrecision: onPrecision));
+    if (order > 0) return Dec.neg(integrate(f, b, a, token: token, onUncertainty: onUncertainty));
     final width = Dec.sub(b, a);
     final singular = _isSingular(f, a) || _isSingular(f, b);
 
@@ -182,10 +202,20 @@ abstract final class CalculusEngine {
       };
     }
 
-    Decimal finish(Decimal value, Decimal scale, [int digits = resultPrecision]) {
-      if (Dec.isZero(value)) return Dec.zero;
-      if (!Dec.isZero(scale) && Dec.adjExp(value) < Dec.adjExp(scale) - 20) return Dec.zero;
-      return Dec.round(value, digits);
+    // Rounds an accepted estimate and reports how far it may be off: the
+    // quadrature error goes with ∫|f| ([scale]) - which matters when the
+    // integrand cancels itself and the value is much smaller - and the
+    // rounding with the value.
+    Decimal finish(Decimal value, Decimal scale, {int digits = resultPrecision, Decimal? error}) {
+      var bound = Dec.isZero(scale) ? Dec.zero : Dec.compose(BigInt.one, Dec.adjExp(scale) - resultPrecision);
+      if (error != null) bound = Dec.max(bound, error);
+      var result = Dec.zero;
+      if (!Dec.isZero(value) && (Dec.isZero(scale) || Dec.adjExp(value) >= Dec.adjExp(scale) - 20)) {
+        result = Dec.round(value, digits);
+        bound = Dec.max(bound, _lastDigitUnit(result, digits));
+      }
+      if (!Dec.isZero(bound)) onUncertainty?.call(bound);
+      return result;
     }
 
     // Nested (dyadic) meshes share their panel edges, so a kink that hides in
@@ -260,8 +290,7 @@ abstract final class CalculusEngine {
       // Report only the digits the last estimates agree on.
       final agreed = Dec.adjExp(scale) - Dec.adjExp(error) - 1;
       final digits = agreed < 3 ? 3 : (agreed > resultPrecision ? resultPrecision : agreed);
-      onPrecision?.call(digits);
-      return finish(best.value!, scale, digits);
+      return finish(best.value!, scale, digits: digits, error: error);
     }
     throw const DomainError('Integral does not converge');
   }
