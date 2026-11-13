@@ -13,6 +13,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 env:
   FLUTTER_VERSION: '3.50.0'
   GH_TOKEN: ${{ github.token }}
@@ -23,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
@@ -32,59 +36,52 @@ jobs:
           cache: true
 
       - name: Prepare report directory
-        run: mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+        run: |
+          mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+          echo "ImageOS=${ImageOS:-?} ImageVersion=${ImageVersion:-?} kernel=$(uname -r) runner=${RUNNER_NAME:-?}" > "$RUNNER_TEMP/out/report-image-verify.txt"
 
       - name: Resolve dependencies
         run: flutter pub get 2>&1 | tee "$OUT/report-pubget.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Generated Drift code is up to date
         if: ${{ !cancelled() }}
         run: |
           dart run build_runner build 2>&1 | tee "$OUT/report-buildrunner.txt"
           git diff --stat --exit-code -- lib/data/local_db/app_database.g.dart 2>&1 | tee -a "$OUT/report-buildrunner.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Static analysis
         if: ${{ !cancelled() }}
         run: flutter analyze 2>&1 | tee "$OUT/report-analyze.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Formatting
         if: ${{ !cancelled() }}
         run: dart format --output=none --set-exit-if-changed $(git ls-files 'lib/*.dart' 'test/*.dart' | grep -v '\.g\.dart$') 2>&1 | tee "$OUT/report-format.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Gate 1 - MathEngine (TC-01..TC-20), headless Dart
         if: ${{ !cancelled() }}
         run: dart test test/domain/engine_verification_test.dart --plain-name "MathEngine" --reporter expanded 2>&1 | tee "$OUT/report-gate1.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Gate 2 - all 24 verification cases, headless Dart
         if: ${{ !cancelled() }}
         run: dart test test/domain/engine_verification_test.dart --reporter expanded 2>&1 | tee "$OUT/report-gate2.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Domain test-suite, headless Dart
         if: ${{ !cancelled() }}
         run: dart test test/domain --reporter expanded 2>&1 | tee "$OUT/report-domain.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Gate 3 - Flutter test-suite (notifier, isolate cancellation, widgets)
         if: ${{ !cancelled() }}
         timeout-minutes: 10
         run: flutter test --timeout 120s --reporter expanded 2>&1 | tee "$OUT/report-flutter-test.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Render screenshots
         if: ${{ !cancelled() }}
         timeout-minutes: 6
         run: CALC_SCREENSHOTS=1 flutter test test/screenshots --timeout 90s --reporter expanded 2>&1 | tee "$OUT/report-screenshots.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Upload screenshots
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screenshots
           path: build/screenshots/*.png
@@ -104,9 +101,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -119,7 +116,9 @@ jobs:
           cache: true
 
       - name: Prepare report directory
-        run: mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+        run: |
+          mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+          echo "ImageOS=${ImageOS:-?} ImageVersion=${ImageVersion:-?} kernel=$(uname -r) runner=${RUNNER_NAME:-?}" > "$RUNNER_TEMP/out/report-image-apk.txt"
 
       - name: Resolve dependencies
         run: flutter pub get
@@ -141,7 +140,6 @@ jobs:
         run: |
           flutter build apk --release --split-per-abi 2>&1 | tee "$OUT/report-apk.txt"
           flutter build apk --release 2>&1 | tee -a "$OUT/report-apk.txt"
-        shell: bash -eo pipefail {0}
 
       # Fails when an APK is not properly signed; the run summary lists what
       # was built and who signed it.
@@ -163,13 +161,36 @@ jobs:
             echo "| $(basename "$apk") | $(stat -c %s "$apk") | \`$(sha256sum "$apk" | cut -d' ' -f1)\` | $signer (\`${digest:0:16}…\`) |" >> "$GITHUB_STEP_SUMMARY"
           done 2>&1 | tee "$OUT/report-sign.txt"
           sha256sum build/app/outputs/flutter-apk/*.apk | tee -a "$OUT/report-apk.txt"
-        shell: bash -eo pipefail {0}
 
-      - name: Upload APKs
-        uses: actions/upload-artifact@v4
+      # Every APK is an artifact of its own and is stored as it is, not inside
+      # a zip, so that it can be downloaded straight onto a device. Such an
+      # artifact is named after its file.
+      - name: Upload app-arm64-v8a-release.apk
+        uses: actions/upload-artifact@v7
         with:
-          name: scientific-calculator-apk
-          path: build/app/outputs/flutter-apk/*.apk
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload app-armeabi-v7a-release.apk
+        uses: actions/upload-artifact@v7
+        with:
+          path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload app-x86_64-release.apk
+        uses: actions/upload-artifact@v7
+        with:
+          path: build/app/outputs/flutter-apk/app-x86_64-release.apk
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload app-release.apk
+        uses: actions/upload-artifact@v7
+        with:
+          path: build/app/outputs/flutter-apk/app-release.apk
+          archive: false
           if-no-files-found: error
 
       # --- temporary development aids ---------------------------------------
@@ -187,12 +208,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      # An APK is a zip file itself and has to arrive unopened.
+      - uses: actions/download-artifact@v8
         with:
-          name: scientific-calculator-apk
+          name: app-release.apk
           path: apk
+          skip-decompress: true
 
       - name: Enable KVM
         run: |
@@ -201,7 +224,11 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Prepare report directory
-        run: mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+        run: |
+          mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+          echo "ImageOS=${ImageOS:-?} ImageVersion=${ImageVersion:-?} kernel=$(uname -r) runner=${RUNNER_NAME:-?}" > "$RUNNER_TEMP/out/report-image-smoke.txt"
+          ls -lR apk >> "$RUNNER_TEMP/out/report-image-smoke.txt" 2>&1 || true
+          sha256sum apk/* >> "$RUNNER_TEMP/out/report-image-smoke.txt" 2>&1 || true
 
       - name: Run the app on an Android emulator
         uses: reactivecircus/android-emulator-runner@v2
@@ -216,7 +243,7 @@ jobs:
 
       - name: Upload emulator screenshots and logcat
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: emulator-smoke
           path: smoke/
