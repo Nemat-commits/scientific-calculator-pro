@@ -27,13 +27,17 @@ abstract final class ClipboardSanitizer {
 
   static const String _superscripts = '⁰¹²³⁴⁵⁶⁷⁸⁹';
 
-  /// Editor nodes for [text]. With [radix] 2, 8 or 16 the text is read as a
-  /// Base-N expression (hex digits are digits, `and`/`or`/`xor`/`not` are
-  /// operators).
-  static List<EditorNode> sanitize(String text, {int radix = 10}) => _Scanner(text, radix).parseAll();
+  /// Editor nodes for [text].
+  ///
+  /// With [programmer] the text is read as a Base-N expression: numbers are
+  /// integers written in [radix] (hex digits are digits) and `and` / `or` /
+  /// `xor` / `not` / `<<` / `>>` are operators.
+  static List<EditorNode> sanitize(String text, {int radix = 10, bool programmer = false}) =>
+      _Scanner(text, radix, programmer || radix != 10).parseAll();
 
   /// A complete root sequence for [text].
-  static EditorSequence toSequence(String text, {int radix = 10}) => EditorSequence.root(sanitize(text, radix: radix));
+  static EditorSequence toSequence(String text, {int radix = 10, bool programmer = false}) =>
+      EditorSequence.root(sanitize(text, radix: radix, programmer: programmer));
 
   static bool _isDigit(String c) => c.length == 1 && c.codeUnitAt(0) >= 0x30 && c.codeUnitAt(0) <= 0x39;
 
@@ -45,10 +49,13 @@ abstract final class ClipboardSanitizer {
 }
 
 final class _Scanner {
-  _Scanner(String text, this.radix) : chars = text.runes.map(String.fromCharCode).toList();
+  _Scanner(String text, this.radix, this.programmer) : chars = text.runes.map(String.fromCharCode).toList();
 
   final List<String> chars;
   final int radix;
+
+  /// Base-N mode: integers only, bitwise operator words.
+  final bool programmer;
   int pos = 0;
 
   bool get atEnd => pos >= chars.length;
@@ -169,7 +176,7 @@ final class _Scanner {
       if (chars.sublist(pos, end).every(_isRadixDigit)) return number(allowGrouping: false);
       return identifier();
     }
-    if (_isRadixDigit(c) || (c == '.' && radix == 10)) return number(allowGrouping: allowGrouping);
+    if (_isRadixDigit(c) || (c == '.' && !programmer)) return number(allowGrouping: allowGrouping);
     if (ClipboardSanitizer._isLetter(c)) return identifier();
     pos++;
     switch (c) {
@@ -213,15 +220,15 @@ final class _Scanner {
         if (cur == '(') return <EditorNode>[integral()];
         return null;
       case '<' || '>':
-        if (radix != 10 && cur == c) {
+        if (programmer && cur == c) {
           pos++;
           return <EditorNode>[AtomNode('$c$c', AtomKind.binaryOp)];
         }
         return null;
       case '~':
-        return radix != 10 ? const <EditorNode>[AtomNode('not', AtomKind.unaryPrefix)] : null;
+        return programmer ? const <EditorNode>[AtomNode('not', AtomKind.unaryPrefix)] : null;
       case '&':
-        return radix != 10 ? const <EditorNode>[AtomNode('and', AtomKind.binaryOp)] : null;
+        return programmer ? const <EditorNode>[AtomNode('and', AtomKind.binaryOp)] : null;
     }
     // Superscript run: ², ³, ⁻¹, ¹⁰ ...
     if (ClipboardSanitizer._superscripts.contains(c) || c == '⁻' || c == '⁺') {
@@ -248,7 +255,7 @@ final class _Scanner {
   List<EditorNode> number({required bool allowGrouping}) {
     final out = <EditorNode>[];
     void digit(String d) => out.add(AtomNode(d.toUpperCase(), AtomKind.digit));
-    if (radix != 10) {
+    if (programmer) {
       while (!atEnd && (_isRadixDigit(cur) || cur == '_')) {
         if (_isRadixDigit(cur)) digit(cur);
         pos++;
@@ -482,7 +489,7 @@ final class _Scanner {
 
     // Prose ("price", "total") is not part of a formula: a run of four or
     // more letters that contains no call and no named constant is dropped.
-    if (radix == 10 && end - start >= 4) {
+    if (!programmer && end - start >= 4) {
       var meaningful = false;
       final probe = pos;
       for (var q = start; q < end && !meaningful; q++) {
@@ -508,7 +515,7 @@ final class _Scanner {
       }
       final rest = chars.sublist(p, end).join();
       final lower = rest.toLowerCase();
-      if (radix != 10) {
+      if (programmer) {
         final word = _baseNWords.entries.where((e) => lower.startsWith(e.key)).firstOrNull;
         if (word != null) {
           out.add(AtomNode(word.value.$1, word.value.$2));

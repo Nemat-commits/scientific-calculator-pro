@@ -74,7 +74,7 @@ abstract final class MathEngine {
     CancellationToken? token,
   }) =>
       evaluateSequence(
-        ClipboardSanitizer.toSequence(text, radix: context.baseN?.radix ?? 10),
+        ClipboardSanitizer.toSequence(text, radix: context.baseN?.radix ?? 10, programmer: context.baseN != null),
         context: context,
         variables: variables,
         token: token,

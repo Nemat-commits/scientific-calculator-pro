@@ -32,3 +32,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: false
+
+  # JetBrains Mono + Inter (SIL OFL 1.1), subset to the glyphs the calculator
+  # uses. package:google_fonts picks these files up instead of fetching the
+  # fonts at runtime, so the app is fully functional offline.
+  assets:
+    - assets/google_fonts/

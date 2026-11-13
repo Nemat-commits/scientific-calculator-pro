@@ -128,6 +128,11 @@ void main() {
       const dec16 = MathContext(baseN: BaseNConfig(wordSize: 16));
       expect(calc('32767 + 1', dec16), '-32768');
       expect(calc('-7 ÷ 2', dec16), '-3');
+      expect(calc('12 AND 10', dec16), '8');
+      expect(calc('NOT 0', dec16), '-1');
+      expect(calc('3 << 4', dec16), '48');
+      expect(calc('-16 >> 2', dec16), '-4');
+      expect(calc('6 XOR 3 OR 8', dec16), '13');
     });
   });
 
