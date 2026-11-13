@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+
+jobs:
+  verify:
+    name: Analyze & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Prepare report directory
+        run: mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+
+      - name: Resolve dependencies
+        run: flutter pub get 2>&1 | tee "$OUT/report-pubget.txt"
+        shell: bash -eo pipefail {0}
+
+      - name: Static analysis
+        if: ${{ !cancelled() }}
+        run: flutter analyze 2>&1 | tee "$OUT/report-analyze.txt"
+        shell: bash -eo pipefail {0}
+
+      - name: Gate 1 - MathEngine (TC-01..TC-20), headless Dart
+        if: ${{ !cancelled() }}
+        run: dart test test/domain/engine_verification_test.dart --plain-name "MathEngine" --reporter expanded 2>&1 | tee "$OUT/report-gate1.txt"
+        shell: bash -eo pipefail {0}
+
+      - name: Gate 2 - all 24 verification cases, headless Dart
+        if: ${{ !cancelled() }}
+        run: dart test test/domain/engine_verification_test.dart --reporter expanded 2>&1 | tee "$OUT/report-gate2.txt"
+        shell: bash -eo pipefail {0}
+
+      - name: Domain test-suite, headless Dart
+        if: ${{ !cancelled() }}
+        run: dart test test/domain --reporter expanded 2>&1 | tee "$OUT/report-domain.txt"
+        shell: bash -eo pipefail {0}
+
+      - name: Flutter test-suite
+        if: ${{ !cancelled() }}
+        run: flutter test --reporter expanded 2>&1 | tee "$OUT/report-flutter-test.txt"
+        shell: bash -eo pipefail {0}
+
+      # --- development aid: mirrors the step logs into check runs -----------
+      - name: Publish reports
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          for f in "$OUT"/report-*.txt; do
+            [ -f "$f" ] || continue
+            name="$(basename "$f" .txt)"
+            tail -c 60000 "$f" > chunk.txt
+            jq -n --arg name "$name" --arg sha "$GITHUB_SHA" --arg summary "run=$GITHUB_RUN_ID bytes=$(wc -c < "$f")" --rawfile text chunk.txt \
+              '{name:$name, head_sha:$sha, status:"completed", conclusion:"neutral", output:{title:$name, summary:$summary, text:$text}}' > payload.json
+            gh api "repos/$GITHUB_REPOSITORY/check-runs" --input payload.json --jq '.id' || true
+          done

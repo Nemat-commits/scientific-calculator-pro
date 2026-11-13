@@ -1,0 +1,55 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+/build/
+/coverage/
+.flutter-plugins
+.flutter-plugins-dependencies
+app.*.symbols
+app.*.map.json
+migrate_working_dir/
+.widget_preview/
+
+# Android
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/.gradle
+/android/captures/
+/android/gradlew
+/android/gradlew.bat
+/android/local.properties
+/android/gradle/wrapper/gradle-wrapper.jar
+**/GeneratedPluginRegistrant.java
+.cxx/
+
+# Signing material & local secrets - never commit these
+key.properties
+keystore.properties
+**/*.keystore
+**/*.jks
+*.p12
+*.pem
+.env
+.env.*
+
+# Heavy build artefacts live in Google Drive, not in git (see README)
+*.apk
+*.aab
+*.ipa
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+*.swp
+*.log
+
+# Golden-test failure output
+**/failures/

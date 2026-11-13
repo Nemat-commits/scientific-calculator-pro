@@ -23,6 +23,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # `test` drives the headless, Flutter-free gate checks of the blueprint
+  # (`dart test test/domain/...`); flutter_test alone cannot run under plain Dart.
   test: ^1.25.0
   drift_dev: ^2.20.0
   build_runner: ^2.4.12
