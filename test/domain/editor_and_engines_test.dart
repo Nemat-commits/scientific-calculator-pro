@@ -311,7 +311,8 @@ void main() {
       expect(pretty(<CalcKey>[digit('2'), power, digit('1'), digit('.'), digit('5')]), '2^1.5');
       expect(pretty(<CalcKey>[e, power, fraction, digit('1'), down, digit('2')]), 'e^(1/2)');
       expect(pretty(<CalcKey>[e, power, op('−'), fraction, digit('1'), down, digit('2')]), 'e^(−(1/2))');
-      expect(pretty(<CalcKey>[const TemplateKey(TemplateKind.squareRoot), fraction, digit('1'), down, digit('4')]), '√(1/4)');
+      expect(pretty(<CalcKey>[const TemplateKey(TemplateKind.squareRoot), fraction, digit('1'), down, digit('4')]),
+          '√(1/4)');
     });
 
     test('keeps them where the text would read differently', () {
@@ -396,7 +397,8 @@ void main() {
       expect(three.roots.map(show).toList(), <String>['1', '2', '3']);
       expect(three.roots.every((r) => r is RationalVal), isTrue);
 
-      final one = PolynomialSolver.solve(<CalcValue>[Values.ofInt(1), Values.ofInt(0), Values.ofInt(0), Values.ofInt(-8)]);
+      final one =
+          PolynomialSolver.solve(<CalcValue>[Values.ofInt(1), Values.ofInt(0), Values.ofInt(0), Values.ofInt(-8)]);
       expect(show(one.roots[0]), '2');
       expect(show(one.roots[1]), '-1 + 1.73205080757i');
 
@@ -418,14 +420,18 @@ void main() {
       expect(show(MatrixOps.inverse(x)), '[[3, -1], [-5, 2]]');
       expect(show(MatrixOps.mul(x, MatrixOps.inverse(x))), '[[1, 0], [0, 1]]');
       expect(show(MatrixOps.transpose(x)), '[[2, 5], [1, 3]]');
-      expect(MatrixOps.rank(m(<List<int>>[
-        <int>[1, 2],
-        <int>[2, 4],
-      ])), 1);
-      expect(() => MatrixOps.inverse(m(<List<int>>[
+      expect(
+          MatrixOps.rank(m(<List<int>>[
             <int>[1, 2],
             <int>[2, 4],
-          ])), throwsA(isA<DomainError>()));
+          ])),
+          1);
+      expect(
+          () => MatrixOps.inverse(m(<List<int>>[
+                <int>[1, 2],
+                <int>[2, 4],
+              ])),
+          throwsA(isA<DomainError>()));
       final evaluated = MathEngine.evaluateText('MatA×MatA+MatA', variables: <String, CalcValue>{'MatA': x});
       expect(evaluated.primary, '[[11, 6], [30, 17]]');
     });

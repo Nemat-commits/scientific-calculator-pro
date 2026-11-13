@@ -149,9 +149,7 @@ abstract final class Dec {
     if (sa == 0) return 0;
     final xa = digitCount(pa.m) + pa.e, xb = digitCount(pb.m) + pb.e;
     if (xa != xb) return (xa < xb ? -1 : 1) * sa;
-    final c = pa.e >= pb.e
-        ? (pa.m * pow10(pa.e - pb.e)).compareTo(pb.m)
-        : pa.m.compareTo(pb.m * pow10(pb.e - pa.e));
+    final c = pa.e >= pb.e ? (pa.m * pow10(pa.e - pb.e)).compareTo(pb.m) : pa.m.compareTo(pb.m * pow10(pb.e - pa.e));
     return c;
   }
 

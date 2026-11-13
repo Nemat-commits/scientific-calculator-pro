@@ -128,7 +128,14 @@ void main() {
     await tapAll(tester, <Finder>[scientificKey('fraction')]);
     notifier.setActiveTab(0);
     await settle(tester);
-    await tapAll(tester, <Finder>[standardKey('1'), standardKey('▼'), standardKey('2'), standardKey('▶'), standardKey('+'), standardKey('3')]);
+    await tapAll(tester, <Finder>[
+      standardKey('1'),
+      standardKey('▼'),
+      standardKey('2'),
+      standardKey('▶'),
+      standardKey('+'),
+      standardKey('3')
+    ]);
     expect(notifier.expressionText(), '((1)/(2))+3');
     expect(stateOf(container).livePreviewPrimary, '3.5');
   });

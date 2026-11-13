@@ -224,8 +224,11 @@ extension EditorNodeStructure on EditorNode {
         PowerNode(:final exponent) => <EditorSequence>[exponent],
         RootNode(:final degree, :final radicand) => <EditorSequence>[degree, radicand],
         FunctionCallEditorNode(:final argSlots) => argSlots,
-        CalculusIntegralNode(:final lowerBound, :final upperBound, :final integrand) =>
-          <EditorSequence>[lowerBound, upperBound, integrand],
+        CalculusIntegralNode(:final lowerBound, :final upperBound, :final integrand) => <EditorSequence>[
+            lowerBound,
+            upperBound,
+            integrand
+          ],
         DerivativeEditorNode(:final body, :final evalPoint) => <EditorSequence>[body, evalPoint],
       };
 
@@ -255,11 +258,17 @@ extension EditorNodeStructure on EditorNode {
 
   Map<String, Object?> toJson() => switch (this) {
         AtomNode(:final text, :final kind) => <String, Object?>{'t': 'a', 'x': text, 'k': kind.name},
-        FractionNode(:final numerator, :final denominator) =>
-          <String, Object?>{'t': 'frac', 'n': numerator.toJson(), 'd': denominator.toJson()},
+        FractionNode(:final numerator, :final denominator) => <String, Object?>{
+            't': 'frac',
+            'n': numerator.toJson(),
+            'd': denominator.toJson()
+          },
         PowerNode(:final exponent) => <String, Object?>{'t': 'pow', 'e': exponent.toJson()},
-        RootNode(:final degree, :final radicand) =>
-          <String, Object?>{'t': 'root', 'g': degree.toJson(), 'r': radicand.toJson()},
+        RootNode(:final degree, :final radicand) => <String, Object?>{
+            't': 'root',
+            'g': degree.toJson(),
+            'r': radicand.toJson()
+          },
         FunctionCallEditorNode(:final functionName, :final argSlots) => <String, Object?>{
             't': 'fn',
             'name': functionName,
@@ -273,7 +282,11 @@ extension EditorNodeStructure on EditorNode {
             'f': integrand.toJson(),
             'v': dummyVariable,
           },
-        DerivativeEditorNode(:final body, :final evalPoint, :final dummyVariable) =>
-          <String, Object?>{'t': 'diff', 'f': body.toJson(), 'at': evalPoint.toJson(), 'v': dummyVariable},
+        DerivativeEditorNode(:final body, :final evalPoint, :final dummyVariable) => <String, Object?>{
+            't': 'diff',
+            'f': body.toJson(),
+            'at': evalPoint.toJson(),
+            'v': dummyVariable
+          },
       };
 }

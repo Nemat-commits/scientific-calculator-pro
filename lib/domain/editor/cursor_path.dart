@@ -36,8 +36,7 @@ final class CursorPath {
 
   CursorPath pop() => CursorPath(List<CursorEntry>.unmodifiable(entries.sublist(0, entries.length - 1)));
 
-  CursorPath replaceTop(String sequenceId, int offset) =>
-      CursorPath(List<CursorEntry>.unmodifiable(<CursorEntry>[
+  CursorPath replaceTop(String sequenceId, int offset) => CursorPath(List<CursorEntry>.unmodifiable(<CursorEntry>[
         ...entries.sublist(0, entries.length - 1),
         (sequenceId, offset),
       ]));

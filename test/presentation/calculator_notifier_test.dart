@@ -226,7 +226,12 @@ void main() {
     final drafts = DraftStateStore.memory();
     container = create(overrides: <Override>[draftStoreProvider.overrideWithValue(drafts)]);
     calculator = container.read(calculatorProvider.notifier);
-    type(<CalcKey>[const TemplateKey(TemplateKind.fraction), digit('3'), const MoveKey(CursorDirection.down), digit('4')]);
+    type(<CalcKey>[
+      const TemplateKey(TemplateKind.fraction),
+      digit('3'),
+      const MoveKey(CursorDirection.down),
+      digit('4')
+    ]);
     final cursor = state().cursorPath;
 
     final restarted = create(overrides: <Override>[draftStoreProvider.overrideWithValue(drafts)]);

@@ -24,7 +24,8 @@ class Panel extends StatelessWidget {
 
 /// A row of mutually exclusive chips (scrolls horizontally when crowded).
 class ChoiceChips extends StatelessWidget {
-  const ChoiceChips({super.key, required this.labels, required this.selected, required this.onSelected, this.height = 30});
+  const ChoiceChips(
+      {super.key, required this.labels, required this.selected, required this.onSelected, this.height = 30});
 
   final List<String> labels;
   final int selected;
@@ -107,7 +108,8 @@ class SmallButton extends StatelessWidget {
               color: primary ? null : (danger ? AppColors.keyDanger : AppColors.keyOperator),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Text(label, maxLines: 1, style: AppTypography.ui(size: 12.5, weight: AppWeight.strong, color: color)),
+            child:
+                Text(label, maxLines: 1, style: AppTypography.ui(size: 12.5, weight: AppWeight.strong, color: color)),
           ),
         ),
       ),
@@ -181,7 +183,8 @@ class LabField extends StatelessWidget {
                   ),
                 ),
               ),
-              if (active) Container(width: 1.5, height: 16, margin: const EdgeInsets.only(left: 2), color: AppColors.caret),
+              if (active)
+                Container(width: 1.5, height: 16, margin: const EdgeInsets.only(left: 2), color: AppColors.caret),
             ],
           ),
         ),

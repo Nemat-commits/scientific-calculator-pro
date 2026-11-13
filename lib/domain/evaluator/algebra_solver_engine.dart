@@ -314,12 +314,14 @@ abstract final class MatrixOps {
 
   static MatrixVal add(MatrixVal a, MatrixVal b) {
     _sameShape(a, b);
-    return _clean(_build(a.rows, a.cols, (r, c) => Dec.add(a.grid[r][c], b.grid[r][c], _p)), Dec.max(_maxAbs(a), _maxAbs(b)));
+    return _clean(
+        _build(a.rows, a.cols, (r, c) => Dec.add(a.grid[r][c], b.grid[r][c], _p)), Dec.max(_maxAbs(a), _maxAbs(b)));
   }
 
   static MatrixVal sub(MatrixVal a, MatrixVal b) {
     _sameShape(a, b);
-    return _clean(_build(a.rows, a.cols, (r, c) => Dec.sub(a.grid[r][c], b.grid[r][c], _p)), Dec.max(_maxAbs(a), _maxAbs(b)));
+    return _clean(
+        _build(a.rows, a.cols, (r, c) => Dec.sub(a.grid[r][c], b.grid[r][c], _p)), Dec.max(_maxAbs(a), _maxAbs(b)));
   }
 
   static MatrixVal scale(MatrixVal a, Decimal k) => _build(a.rows, a.cols, (r, c) => Dec.mul(a.grid[r][c], k));
@@ -431,7 +433,9 @@ abstract final class MatrixOps {
 
   /// Rank by Gaussian elimination with partial pivoting.
   static int rank(MatrixVal a) {
-    final g = <List<Decimal>>[for (final row in a.grid) <Decimal>[...row]];
+    final g = <List<Decimal>>[
+      for (final row in a.grid) <Decimal>[...row]
+    ];
     final scale = _maxAbs(a);
     if (Dec.isZero(scale)) return 0;
     bool negligible(Decimal v) => Dec.isZero(v) || Dec.adjExp(v) < Dec.adjExp(scale) - 40;
@@ -486,8 +490,7 @@ abstract final class VectorOps {
   /// Cross product of two 3D vectors.
   static List<Decimal> cross(List<Decimal> a, List<Decimal> b) {
     if (a.length != 3 || b.length != 3) throw const DimensionError('The cross product needs 3D vectors');
-    Decimal minor(int i, int j) =>
-        Dec.round(Dec.sub(Dec.mul(a[i], b[j], _p), Dec.mul(a[j], b[i], _p), _p), WORK_PREC);
+    Decimal minor(int i, int j) => Dec.round(Dec.sub(Dec.mul(a[i], b[j], _p), Dec.mul(a[j], b[i], _p), _p), WORK_PREC);
     return <Decimal>[minor(1, 2), minor(2, 0), minor(0, 1)];
   }
 

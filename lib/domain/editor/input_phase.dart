@@ -116,9 +116,8 @@ abstract final class InputPhaseMachine {
       case InputPhase.committedResult:
         if (key is MoveKey) {
           // Re-open the previous expression: ◀ lands at its end, ▶ at its start.
-          final cursor = key.direction == CursorDirection.right
-              ? CursorPath.root()
-              : CursorPath.root(s.editor.root.length);
+          final cursor =
+              key.direction == CursorDirection.right ? CursorPath.root() : CursorPath.root(s.editor.root.length);
           return EditingSession(EditorState(s.editor.root, cursor));
         }
         if (key is BackspaceKey) return EditingSession(MathPrintController.moveToEnd(s.editor));

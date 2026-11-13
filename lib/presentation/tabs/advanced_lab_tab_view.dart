@@ -486,7 +486,8 @@ class _TableViewState extends ConsumerState<_TableView> {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Text('f(x) = ', style: AppTypography.mono(size: 15, weight: AppWeight.medium, color: AppColors.textMuted)),
+              Text('f(x) = ',
+                  style: AppTypography.mono(size: 15, weight: AppWeight.medium, color: AppColors.textMuted)),
               Expanded(
                 child: Text(
                   expression.isEmpty ? 'type a formula with x on the keypad' : AppTypography.signs(expression),
@@ -655,12 +656,22 @@ class _StatsViewState extends State<_StatsView> {
             Row(
               children: <Widget>[
                 Expanded(
-                  child: LabField(value: _x, active: _active == 'x', label: 'x', minWidth: 0, onTap: () => setState(() => _active = 'x')),
+                  child: LabField(
+                      value: _x,
+                      active: _active == 'x',
+                      label: 'x',
+                      minWidth: 0,
+                      onTap: () => setState(() => _active = 'x')),
                 ),
                 if (_paired) ...<Widget>[
                   const SizedBox(width: 6),
                   Expanded(
-                    child: LabField(value: _y, active: _active == 'y', label: 'y', minWidth: 0, onTap: () => setState(() => _active = 'y')),
+                    child: LabField(
+                        value: _y,
+                        active: _active == 'y',
+                        label: 'y',
+                        minWidth: 0,
+                        onTap: () => setState(() => _active = 'y')),
                   ),
                 ],
               ],
@@ -764,7 +775,9 @@ class _BaseNViewState extends State<_BaseNView> {
   void _reconfigure(BaseNConfig next) => setState(() {
         final v = _value;
         _config = next;
-        _input = v == null ? '' : NumberFormatter.formatBitwise(BaseN.convert(v, next), radix: next.radix).replaceAll('-', '−');
+        _input = v == null
+            ? ''
+            : NumberFormatter.formatBitwise(BaseN.convert(v, next), radix: next.radix).replaceAll('-', '−');
         _evaluate();
       });
 
@@ -859,9 +872,30 @@ class _BaseNViewState extends State<_BaseNView> {
                 gap: 5,
                 rows: <List<Widget>>[
                   <Widget>[digit('A'), digit('B'), digit('C'), digit('D'), digit('E'), digit('F')],
-                  <Widget>[digit('7'), digit('8'), digit('9'), op('÷', '÷', size: 18), op('AND', ' AND ', tone: KeyTone.function, size: 12), op('OR', ' OR ', tone: KeyTone.function, size: 12)],
-                  <Widget>[digit('4'), digit('5'), digit('6'), op('×', '×', size: 18), op('XOR', ' XOR ', tone: KeyTone.function, size: 12), op('NOT', 'NOT ', tone: KeyTone.function, size: 12)],
-                  <Widget>[digit('1'), digit('2'), digit('3'), op('−', '−', size: 18), op('<<', ' << ', tone: KeyTone.function, size: 13), op('>>', ' >> ', tone: KeyTone.function, size: 13)],
+                  <Widget>[
+                    digit('7'),
+                    digit('8'),
+                    digit('9'),
+                    op('÷', '÷', size: 18),
+                    op('AND', ' AND ', tone: KeyTone.function, size: 12),
+                    op('OR', ' OR ', tone: KeyTone.function, size: 12)
+                  ],
+                  <Widget>[
+                    digit('4'),
+                    digit('5'),
+                    digit('6'),
+                    op('×', '×', size: 18),
+                    op('XOR', ' XOR ', tone: KeyTone.function, size: 12),
+                    op('NOT', 'NOT ', tone: KeyTone.function, size: 12)
+                  ],
+                  <Widget>[
+                    digit('1'),
+                    digit('2'),
+                    digit('3'),
+                    op('−', '−', size: 18),
+                    op('<<', ' << ', tone: KeyTone.function, size: 13),
+                    op('>>', ' >> ', tone: KeyTone.function, size: 13)
+                  ],
                   <Widget>[
                     digit('0'),
                     op('(', '(', tone: KeyTone.function, size: 16),

@@ -99,7 +99,8 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
               child: Text(
                 unit.symbol,
                 maxLines: 1,
-                style: AppTypography.ui(size: 13.5, weight: AppWeight.strong, color: active ? AppColors.accent : AppColors.textPrimary),
+                style: AppTypography.ui(
+                    size: 13.5, weight: AppWeight.strong, color: active ? AppColors.accent : AppColors.textPrimary),
               ),
             ),
             Expanded(
@@ -169,7 +170,10 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(constant.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTypography.ui(size: 12, color: AppColors.textSecondary)),
+                  Text(constant.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.ui(size: 12, color: AppColors.textSecondary)),
                   const SizedBox(height: 2),
                   Text(
                     '${_shorten(constant.value)} ${constant.unit}${constant.exact ? '  (exact)' : ''}',

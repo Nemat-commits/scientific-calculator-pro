@@ -51,8 +51,7 @@ class ResultText extends StatelessWidget {
     final base = AppTypography.mono(size: fontSize, weight: weight, color: color, height: 1.15);
     final small = AppTypography.mono(size: fontSize * 0.6, weight: weight, color: color, height: 1);
     final spans = <InlineSpan>[
-      if (prefix != null)
-        TextSpan(text: '$prefix ', style: base.copyWith(color: AppColors.textMuted)),
+      if (prefix != null) TextSpan(text: '$prefix ', style: base.copyWith(color: AppColors.textMuted)),
       for (final (text, superscript) in segments(value))
         if (superscript)
           WidgetSpan(

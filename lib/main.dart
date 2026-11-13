@@ -35,9 +35,8 @@ Future<void> main() async {
 
   final preferences = await SharedPreferences.getInstance();
   final executor = openConnection();
-  final CalculatorRepository repository = executor == null
-      ? InMemoryCalculatorRepository()
-      : DriftCalculatorRepository(AppDatabase(executor), preferences);
+  final CalculatorRepository repository =
+      executor == null ? InMemoryCalculatorRepository() : DriftCalculatorRepository(AppDatabase(executor), preferences);
 
   // Everything below degrades gracefully: a failure must never keep the
   // calculator from starting.

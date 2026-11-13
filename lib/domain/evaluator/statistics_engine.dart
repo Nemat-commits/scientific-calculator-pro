@@ -71,8 +71,7 @@ final class TwoVarStats {
   Decimal? get rSquared => correlation == null ? null : Dec.mul(correlation!, correlation!);
 
   /// `ŷ = a + b x`
-  Decimal? predictY(Decimal xValue) =>
-      slope == null ? null : Dec.add(intercept!, Dec.mul(slope!, xValue));
+  Decimal? predictY(Decimal xValue) => slope == null ? null : Dec.add(intercept!, Dec.mul(slope!, xValue));
 
   /// `x̂ = (y − a) / b`
   Decimal? predictX(Decimal yValue) =>
@@ -151,9 +150,8 @@ abstract final class StatisticsEngine {
     final sxy = Dec.sub(Dec.mul(count, sumXY, _exact), Dec.mul(sx.sum, sy.sum, _exact), _exact);
     final slope = Dec.isZero(sxx) ? null : Dec.div(sxy, sxx);
     final intercept = slope == null ? null : Dec.div(Dec.sub(sy.sum, Dec.mul(slope, sx.sum, 80), 80), count);
-    final correlation = Dec.isZero(sxx) || Dec.isZero(syy)
-        ? null
-        : Dec.div(sxy, Dec.sqrt(Dec.mul(sxx, syy, _exact), 60));
+    final correlation =
+        Dec.isZero(sxx) || Dec.isZero(syy) ? null : Dec.div(sxy, Dec.sqrt(Dec.mul(sxx, syy, _exact), 60));
     return TwoVarStats(
       x: sx,
       y: sy,

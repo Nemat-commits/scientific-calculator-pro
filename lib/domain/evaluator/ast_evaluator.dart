@@ -141,9 +141,8 @@ final class AstEvaluator {
         final other = nudged is ComplexVal ? nudged : null;
         return ComplexVal(_sharedDigits(real, other?.real), _sharedDigits(imag, other?.imag));
       case MatrixVal(:final grid):
-        final other = nudged is MatrixVal && nudged.rows == grid.length && nudged.cols == grid.first.length
-            ? nudged.grid
-            : null;
+        final other =
+            nudged is MatrixVal && nudged.rows == grid.length && nudged.cols == grid.first.length ? nudged.grid : null;
         return MatrixVal(<List<Decimal>>[
           for (var r = 0; r < grid.length; r++)
             <Decimal>[for (var c = 0; c < grid[r].length; c++) _sharedDigits(grid[r][c], other?[r][c])],

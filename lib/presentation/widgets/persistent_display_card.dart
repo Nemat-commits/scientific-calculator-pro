@@ -117,7 +117,8 @@ class _PersistentDisplayCardState extends ConsumerState<PersistentDisplayCard> {
                     // expression as linear text.
                     child: Semantics(
                       container: true,
-                      label: 'Expression: ${state.rootSequence.isEmpty ? 'empty' : TreeToTokenLowerer.toDisplayText(state.rootSequence)}',
+                      label:
+                          'Expression: ${state.rootSequence.isEmpty ? 'empty' : TreeToTokenLowerer.toDisplayText(state.rootSequence)}',
                       child: MathPrintCanvas(
                         root: state.rootSequence,
                         cursor: CursorPath.fromRecords(state.cursorPath),
@@ -142,7 +143,8 @@ class _PersistentDisplayCardState extends ConsumerState<PersistentDisplayCard> {
                                 child: Text(
                                   state.errorMessage ?? 'Error',
                                   maxLines: 1,
-                                  style: AppTypography.ui(size: compact ? 15 : 18, weight: AppWeight.medium, color: AppColors.error),
+                                  style: AppTypography.ui(
+                                      size: compact ? 15 : 18, weight: AppWeight.medium, color: AppColors.error),
                                 ),
                               ),
                             ),
@@ -211,9 +213,12 @@ class _StatusRow extends ConsumerWidget {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: <Widget>[
-                  StatusBadge(state.angleUnit.label, highlighted: true, onTap: notifier.cycleAngleUnit, semanticLabel: 'Angle unit'),
-                  StatusBadge(state.isComplexEnabled ? 'CPLX' : 'REAL', highlighted: state.isComplexEnabled, onTap: notifier.toggleComplex),
-                  StatusBadge(state.juxtapositionMode.label, onTap: notifier.toggleJuxtaposition, semanticLabel: 'Implied multiplication'),
+                  StatusBadge(state.angleUnit.label,
+                      highlighted: true, onTap: notifier.cycleAngleUnit, semanticLabel: 'Angle unit'),
+                  StatusBadge(state.isComplexEnabled ? 'CPLX' : 'REAL',
+                      highlighted: state.isComplexEnabled, onTap: notifier.toggleComplex),
+                  StatusBadge(state.juxtapositionMode.label,
+                      onTap: notifier.toggleJuxtaposition, semanticLabel: 'Implied multiplication'),
                   if (state.isInverseActive) const StatusBadge('INV', highlighted: true),
                   if (state.isHyperbolicActive) const StatusBadge('HYP', highlighted: true),
                   if (state.hasMemory) const StatusBadge('M', highlighted: true),
@@ -236,7 +241,8 @@ class _StatusRow extends ConsumerWidget {
 
 /// A small pill in the status row; tappable when [onTap] is set.
 class StatusBadge extends StatelessWidget {
-  const StatusBadge(this.label, {super.key, this.highlighted = false, this.danger = false, this.onTap, this.semanticLabel});
+  const StatusBadge(this.label,
+      {super.key, this.highlighted = false, this.danger = false, this.onTap, this.semanticLabel});
 
   final String label;
   final bool highlighted;
@@ -253,9 +259,11 @@ class StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: danger ? AppColors.errorSoft : (highlighted ? AppColors.accentFaint : AppColors.transparent),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: danger ? AppColors.errorSoft : (highlighted ? AppColors.accentSoft : AppColors.cardBorder)),
+        border: Border.all(
+            color: danger ? AppColors.errorSoft : (highlighted ? AppColors.accentSoft : AppColors.cardBorder)),
       ),
-      child: Text(label, maxLines: 1, style: AppTypography.ui(size: 10.5, weight: AppWeight.strong, color: color, letterSpacing: 0.4)),
+      child: Text(label,
+          maxLines: 1, style: AppTypography.ui(size: 10.5, weight: AppWeight.strong, color: color, letterSpacing: 0.4)),
     );
     if (onTap == null) return pill;
     return Semantics(
@@ -300,8 +308,8 @@ class _BusyDot extends StatefulWidget {
 }
 
 class _BusyDotState extends State<_BusyDot> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 700))..repeat(reverse: true);
+  late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 700))
+    ..repeat(reverse: true);
 
   @override
   void dispose() {

@@ -57,7 +57,9 @@ class _IconPainter extends CustomPainter {
         line(0.40, 0.82);
       case AppIconGlyph.copy:
         canvas
-          ..drawRRect(RRect.fromRectAndRadius(Rect.fromLTRB(0.34 * s, 0.30 * s, 0.84 * s, 0.86 * s), Radius.circular(0.10 * s)), paint)
+          ..drawRRect(
+              RRect.fromRectAndRadius(Rect.fromLTRB(0.34 * s, 0.30 * s, 0.84 * s, 0.86 * s), Radius.circular(0.10 * s)),
+              paint)
           ..drawPath(
             Path()
               ..moveTo(0.66 * s, 0.30 * s)
@@ -72,8 +74,12 @@ class _IconPainter extends CustomPainter {
           );
       case AppIconGlyph.paste:
         canvas
-          ..drawRRect(RRect.fromRectAndRadius(Rect.fromLTRB(0.20 * s, 0.22 * s, 0.80 * s, 0.88 * s), Radius.circular(0.10 * s)), paint)
-          ..drawRRect(RRect.fromRectAndRadius(Rect.fromLTRB(0.36 * s, 0.12 * s, 0.64 * s, 0.30 * s), Radius.circular(0.06 * s)), paint);
+          ..drawRRect(
+              RRect.fromRectAndRadius(Rect.fromLTRB(0.20 * s, 0.22 * s, 0.80 * s, 0.88 * s), Radius.circular(0.10 * s)),
+              paint)
+          ..drawRRect(
+              RRect.fromRectAndRadius(Rect.fromLTRB(0.36 * s, 0.12 * s, 0.64 * s, 0.30 * s), Radius.circular(0.06 * s)),
+              paint);
         move(0.36, 0.52);
         line(0.64, 0.52);
         move(0.36, 0.68);

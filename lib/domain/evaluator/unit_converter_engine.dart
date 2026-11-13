@@ -15,8 +15,7 @@ abstract final class UnitConverterEngine {
   static final Map<String, CalcValue> _cache = <String, CalcValue>{};
   static final AstEvaluator _arithmetic = AstEvaluator();
 
-  static CalcValue _parse(String expression) =>
-      _cache[expression] ??= MathEngine.evaluateText(expression).value;
+  static CalcValue _parse(String expression) => _cache[expression] ??= MathEngine.evaluateText(expression).value;
 
   /// Size of [unit] in base units.
   static CalcValue factorOf(UnitDef unit) => _parse(unit.factor);

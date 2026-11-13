@@ -101,7 +101,8 @@ class MathLayoutEngine {
     final box = _sequence(root, fontSize, 0);
     final pad = fontSize * 0.08;
     box.place(pad, box.asc + pad, this);
-    return MathLayout._(box, List<SlotGeometry>.unmodifiable(_slots), Size(box.w + 2 * pad, box.asc + box.desc + 2 * pad));
+    return MathLayout._(
+        box, List<SlotGeometry>.unmodifiable(_slots), Size(box.w + 2 * pad, box.asc + box.desc + 2 * pad));
   }
 
   double _scaled(double f, double k) => math.max(f * k, _minFont);
@@ -112,7 +113,8 @@ class MathLayoutEngine {
     if (cached != null) return cached;
     if (_painters.length > 1500) _painters.clear();
     final painter = TextPainter(
-      text: TextSpan(text: AppTypography.signs(text), style: AppTypography.mono(size: size, color: color, weight: weight)),
+      text: TextSpan(
+          text: AppTypography.signs(text), style: AppTypography.mono(size: size, color: color, weight: weight)),
       textDirection: TextDirection.ltr,
       textScaler: textScaler,
       maxLines: 1,
@@ -120,7 +122,8 @@ class MathLayoutEngine {
     return _painters[key] = painter;
   }
 
-  _TextBox _glyphs(String text, double f, Color color, {double padLeft = 0, double padRight = 0, AppWeight weight = AppWeight.regular}) =>
+  _TextBox _glyphs(String text, double f, Color color,
+          {double padLeft = 0, double padRight = 0, AppWeight weight = AppWeight.regular}) =>
       _TextBox(_text(text, f, color, weight: weight), f, padLeft: padLeft, padRight: padRight);
 
   static const Map<String, String> _functionLabels = <String, String>{
@@ -185,7 +188,8 @@ class MathLayoutEngine {
     switch (node.kind) {
       case AtomKind.digit:
         if (text == 'E') {
-          return _glyphs('E', f * 0.8, AppColors.mathOperator, padLeft: f * 0.04, padRight: f * 0.04, weight: AppWeight.medium);
+          return _glyphs('E', f * 0.8, AppColors.mathOperator,
+              padLeft: f * 0.04, padRight: f * 0.04, weight: AppWeight.medium);
         }
         return _glyphs(text, f, AppColors.mathDigit);
       case AtomKind.binaryOp:
@@ -203,7 +207,8 @@ class MathLayoutEngine {
       case AtomKind.unaryPostfix:
         return _glyphs(text, f, AppColors.mathOperator);
       case AtomKind.unaryPrefix:
-        return _glyphs(text, text.length > 1 ? f * 0.82 : f, AppColors.mathOperator, padRight: text.length > 1 ? f * 0.25 : 0);
+        return _glyphs(text, text.length > 1 ? f * 0.82 : f, AppColors.mathOperator,
+            padRight: text.length > 1 ? f * 0.25 : 0);
       case AtomKind.constant:
         return _symbol(text, f, AppColors.mathConstant);
       case AtomKind.variable:
@@ -594,8 +599,10 @@ class _DerivativeBox extends _GroupBox {
   void paint(Canvas canvas) {
     final barY = y - _axis(f);
     canvas
-      ..drawLine(Offset(x + f * 0.03, barY), Offset(x + operatorWidth - f * 0.03, barY), _stroke(AppColors.mathFunction, _rule(f)))
-      ..drawLine(Offset(x + barX, y - barTop), Offset(x + barX, y + barBottom), _stroke(AppColors.mathFunction, _rule(f)));
+      ..drawLine(Offset(x + f * 0.03, barY), Offset(x + operatorWidth - f * 0.03, barY),
+          _stroke(AppColors.mathFunction, _rule(f)))
+      ..drawLine(
+          Offset(x + barX, y - barTop), Offset(x + barX, y + barBottom), _stroke(AppColors.mathFunction, _rule(f)));
     super.paint(canvas);
   }
 }

@@ -81,14 +81,21 @@ abstract final class MathConstants {
   static const List<PhysicalConstant> codata = <PhysicalConstant>[
     PhysicalConstant(symbol: 'c_0', name: 'Speed of light in vacuum', value: '299792458', unit: 'm/s', exact: true),
     PhysicalConstant(symbol: 'h', name: 'Planck constant', value: '6.62607015e-34', unit: 'J·s', exact: true),
-    PhysicalConstant(symbol: 'ħ', name: 'Reduced Planck constant', value: '1.054571817646156391262428003302280744722826330020e-34', unit: 'J·s', exact: true),
+    PhysicalConstant(
+        symbol: 'ħ',
+        name: 'Reduced Planck constant',
+        value: '1.054571817646156391262428003302280744722826330020e-34',
+        unit: 'J·s',
+        exact: true),
     PhysicalConstant(symbol: 'q_e', name: 'Elementary charge', value: '1.602176634e-19', unit: 'C', exact: true),
     PhysicalConstant(symbol: 'k_B', name: 'Boltzmann constant', value: '1.380649e-23', unit: 'J/K', exact: true),
     PhysicalConstant(symbol: 'N_A', name: 'Avogadro constant', value: '6.02214076e23', unit: '1/mol', exact: true),
-    PhysicalConstant(symbol: 'R', name: 'Molar gas constant', value: '8.31446261815324', unit: 'J/(mol·K)', exact: true),
+    PhysicalConstant(
+        symbol: 'R', name: 'Molar gas constant', value: '8.31446261815324', unit: 'J/(mol·K)', exact: true),
     PhysicalConstant(symbol: 'F', name: 'Faraday constant', value: '96485.3321233100184', unit: 'C/mol', exact: true),
     PhysicalConstant(symbol: 'G', name: 'Newtonian constant of gravitation', value: '6.67430e-11', unit: 'm³/(kg·s²)'),
-    PhysicalConstant(symbol: 'g_0', name: 'Standard acceleration of gravity', value: '9.80665', unit: 'm/s²', exact: true),
+    PhysicalConstant(
+        symbol: 'g_0', name: 'Standard acceleration of gravity', value: '9.80665', unit: 'm/s²', exact: true),
     PhysicalConstant(symbol: 'm_e', name: 'Electron mass', value: '9.1093837139e-31', unit: 'kg'),
     PhysicalConstant(symbol: 'm_p', name: 'Proton mass', value: '1.67262192595e-27', unit: 'kg'),
     PhysicalConstant(symbol: 'm_n', name: 'Neutron mass', value: '1.67492750056e-27', unit: 'kg'),
@@ -99,8 +106,18 @@ abstract final class MathConstants {
     PhysicalConstant(symbol: 'R_∞', name: 'Rydberg constant', value: '10973731.568157', unit: '1/m'),
     PhysicalConstant(symbol: 'a_0', name: 'Bohr radius', value: '5.29177210544e-11', unit: 'm'),
     PhysicalConstant(symbol: 'μ_B', name: 'Bohr magneton', value: '9.2740100657e-24', unit: 'J/T'),
-    PhysicalConstant(symbol: 'σ', name: 'Stefan-Boltzmann constant', value: '5.670374419184429453970996731889230875840122970291e-8', unit: 'W/(m²·K⁴)', exact: true),
-    PhysicalConstant(symbol: 'V_m', name: 'Molar volume of an ideal gas (273.15 K, 101.325 kPa)', value: '0.02241396954501413773501110289', unit: 'm³/mol', exact: true),
+    PhysicalConstant(
+        symbol: 'σ',
+        name: 'Stefan-Boltzmann constant',
+        value: '5.670374419184429453970996731889230875840122970291e-8',
+        unit: 'W/(m²·K⁴)',
+        exact: true),
+    PhysicalConstant(
+        symbol: 'V_m',
+        name: 'Molar volume of an ideal gas (273.15 K, 101.325 kPa)',
+        value: '0.02241396954501413773501110289',
+        unit: 'm³/mol',
+        exact: true),
     PhysicalConstant(symbol: 'atm', name: 'Standard atmosphere', value: '101325', unit: 'Pa', exact: true),
     PhysicalConstant(symbol: 'eV', name: 'Electron volt', value: '1.602176634e-19', unit: 'J', exact: true),
   ];

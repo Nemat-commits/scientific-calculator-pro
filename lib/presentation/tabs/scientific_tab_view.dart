@@ -107,11 +107,13 @@ class ScientificTabView extends ConsumerWidget {
             key(_trig('tan', inverse, hyperbolic)),
             key(
               _function('ln'),
-              inv: _Face((c) => KeyLegend('e', sup: 'x', color: c), const TemplateKey(TemplateKind.powerOfE), name: 'e to the x'),
+              inv: _Face((c) => KeyLegend('e', sup: 'x', color: c), const TemplateKey(TemplateKind.powerOfE),
+                  name: 'e to the x'),
             ),
             key(
               _function('log'),
-              inv: _Face((c) => KeyLegend('10', sup: 'x', color: c), const TemplateKey(TemplateKind.powerOfTen), name: 'ten to the x'),
+              inv: _Face((c) => KeyLegend('10', sup: 'x', color: c), const TemplateKey(TemplateKind.powerOfTen),
+                  name: 'ten to the x'),
             ),
           ],
           <Widget>[
@@ -121,15 +123,18 @@ class ScientificTabView extends ConsumerWidget {
             ),
             key(
               _Face((c) => KeyLegend('x', sup: 'y', color: c), const TemplateKey(TemplateKind.power), name: 'power'),
-              inv: _Face((c) => KeyLegend('√x', lead: 'y', color: c), const TemplateKey(TemplateKind.nthRoot), name: 'nth root'),
+              inv: _Face((c) => KeyLegend('√x', lead: 'y', color: c), const TemplateKey(TemplateKind.nthRoot),
+                  name: 'nth root'),
             ),
             key(
               _Face((c) => KeyLegend('√x', color: c), const TemplateKey(TemplateKind.squareRoot), name: 'square root'),
-              inv: _Face((c) => KeyLegend('√x', lead: '3', color: c), const TemplateKey(TemplateKind.cubeRoot), name: 'cube root'),
+              inv: _Face((c) => KeyLegend('√x', lead: '3', color: c), const TemplateKey(TemplateKind.cubeRoot),
+                  name: 'cube root'),
             ),
             key(
               _Face((c) => FractionLegend(color: c), const TemplateKey(TemplateKind.fraction), name: 'fraction'),
-              inv: _Face((c) => KeyLegend('x', sup: '−1', color: c), const TemplateKey(TemplateKind.reciprocal), name: 'reciprocal'),
+              inv: _Face((c) => KeyLegend('x', sup: '−1', color: c), const TemplateKey(TemplateKind.reciprocal),
+                  name: 'reciprocal'),
             ),
             key(
               _function('abs', label: '|x|'),
@@ -137,8 +142,10 @@ class ScientificTabView extends ConsumerWidget {
             ),
           ],
           <Widget>[
-            key(_text('π', const AtomKey('π', AtomKind.constant), name: 'pi'), inv: _text('φ', const AtomKey('φ', AtomKind.constant), name: 'phi')),
-            key(_text('e', const AtomKey('e', AtomKind.constant)), inv: _text('°', const AtomKey('°', AtomKind.unaryPostfix), name: 'degrees')),
+            key(_text('π', const AtomKey('π', AtomKind.constant), name: 'pi'),
+                inv: _text('φ', const AtomKey('φ', AtomKind.constant), name: 'phi')),
+            key(_text('e', const AtomKey('e', AtomKind.constant)),
+                inv: _text('°', const AtomKey('°', AtomKind.unaryPostfix), name: 'degrees')),
             key(
               _text('i', const AtomKey('i', AtomKind.constant), name: 'imaginary unit'),
               inv: _Face(
@@ -148,18 +155,22 @@ class ScientificTabView extends ConsumerWidget {
               ),
             ),
             key(
-              _Face((c) => KeyLegend('×10', sup: 'x', color: c, size: 15), const AtomKey('E', AtomKind.digit), name: 'exponent'),
+              _Face((c) => KeyLegend('×10', sup: 'x', color: c, size: 15), const AtomKey('E', AtomKind.digit),
+                  name: 'exponent'),
               inv: _Face(
                 (c) => KeyLegend('log', sub: 'a', color: c),
                 const TemplateKey(TemplateKind.function, name: 'logb', arity: 2),
                 name: 'log to base a',
               ),
             ),
-            key(_text('x!', const AtomKey('!', AtomKind.unaryPostfix), name: 'factorial'), inv: _function('gamma', label: 'Γ')),
+            key(_text('x!', const AtomKey('!', AtomKind.unaryPostfix), name: 'factorial'),
+                inv: _function('gamma', label: 'Γ')),
           ],
           <Widget>[
-            key(_Face((c) => KeyLegend('∫', sub: 'dx', color: c), const TemplateKey(TemplateKind.integral), name: 'integral')),
-            key(_Face((c) => KeyLegend('d/dx', color: c, size: 15), const TemplateKey(TemplateKind.derivative), name: 'derivative')),
+            key(_Face((c) => KeyLegend('∫', sub: 'dx', color: c), const TemplateKey(TemplateKind.integral),
+                name: 'integral')),
+            key(_Face((c) => KeyLegend('d/dx', color: c, size: 15), const TemplateKey(TemplateKind.derivative),
+                name: 'derivative')),
             key(_function('ncr', label: 'nCr', arity: 2), inv: _function('npr', label: 'nPr', arity: 2)),
             key(_text('(', const AtomKey('(', AtomKind.paren), name: 'open parenthesis')),
             key(_text(')', const AtomKey(')', AtomKind.paren), name: 'close parenthesis')),

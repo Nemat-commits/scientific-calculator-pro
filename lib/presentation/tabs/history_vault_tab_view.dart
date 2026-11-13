@@ -212,7 +212,8 @@ class _VariablesPage extends ConsumerWidget {
                 children: <Widget>[
                   SizedBox(
                     width: 40,
-                    child: Text(name, style: AppTypography.mono(size: 15, weight: AppWeight.medium, color: AppColors.mathVariable)),
+                    child: Text(name,
+                        style: AppTypography.mono(size: 15, weight: AppWeight.medium, color: AppColors.mathVariable)),
                   ),
                   Expanded(
                     child: SizedBox(

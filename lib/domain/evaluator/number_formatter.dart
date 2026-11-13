@@ -143,7 +143,8 @@ abstract final class NumberFormatter {
       if (start > 0) {
         final prev = text[start - 1];
         final prev2 = start > 1 ? text[start - 2] : '';
-        final afterExponent = prev == 'e' || prev == '^' || ((prev == '-' || prev == '+') && (prev2 == 'e' || prev2 == '^'));
+        final afterExponent =
+            prev == 'e' || prev == '^' || ((prev == '-' || prev == '+') && (prev2 == 'e' || prev2 == '^'));
         if (afterExponent || prev == '.') return match[0]!;
       }
       final token = match[0]!;

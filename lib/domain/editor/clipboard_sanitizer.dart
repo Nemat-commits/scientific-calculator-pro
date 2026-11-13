@@ -13,16 +13,70 @@ import '../models/editor_node.dart';
 abstract final class ClipboardSanitizer {
   /// Function names understood in text, lower-case.
   static const Set<String> functionNames = <String>{
-    'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
-    'ln', 'log', 'log2', 'logb', 'exp', 'abs', 'sgn', 'floor', 'ceil', 'round', 'trunc', 'frac',
-    'ncr', 'npr', 'gcd', 'lcm', 'mod', 'min', 'max', 'gamma', 'fact', 'atan2', 'pow',
-    're', 'im', 'arg', 'conj', 'det', 'trn', 'inv', 'identity', 'rand',
-    'sqrt', 'cbrt', 'root', 'int', 'diff',
+    'sin',
+    'cos',
+    'tan',
+    'asin',
+    'acos',
+    'atan',
+    'sinh',
+    'cosh',
+    'tanh',
+    'asinh',
+    'acosh',
+    'atanh',
+    'ln',
+    'log',
+    'log2',
+    'logb',
+    'exp',
+    'abs',
+    'sgn',
+    'floor',
+    'ceil',
+    'round',
+    'trunc',
+    'frac',
+    'ncr',
+    'npr',
+    'gcd',
+    'lcm',
+    'mod',
+    'min',
+    'max',
+    'gamma',
+    'fact',
+    'atan2',
+    'pow',
+    're',
+    'im',
+    'arg',
+    'conj',
+    'det',
+    'trn',
+    'inv',
+    'identity',
+    'rand',
+    'sqrt',
+    'cbrt',
+    'root',
+    'int',
+    'diff',
   };
 
   static const Map<String, String> _aliases = <String, String>{
-    'arcsin': 'asin', 'arccos': 'acos', 'arctan': 'atan', 'arsinh': 'asinh', 'arcosh': 'acosh', 'artanh': 'atanh',
-    'log10': 'log', 'lg': 'log', 'sign': 'sgn', 'int': 'int', 'nchoosek': 'ncr', 'transpose': 'trn',
+    'arcsin': 'asin',
+    'arccos': 'acos',
+    'arctan': 'atan',
+    'arsinh': 'asinh',
+    'arcosh': 'acosh',
+    'artanh': 'atanh',
+    'log10': 'log',
+    'lg': 'log',
+    'sign': 'sgn',
+    'int': 'int',
+    'nchoosek': 'ncr',
+    'transpose': 'trn',
   };
 
   static const String _superscripts = '⁰¹²³⁴⁵⁶⁷⁸⁹';
@@ -79,8 +133,25 @@ final class _Scanner {
 
   /// Functions that may be written without parentheses (`sin 30`, `ln 2`).
   static const Set<String> _bareFunctions = <String>{
-    'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
-    'ln', 'log', 'log2', 'exp', 'abs', 'sqrt', 'cbrt',
+    'sin',
+    'cos',
+    'tan',
+    'asin',
+    'acos',
+    'atan',
+    'sinh',
+    'cosh',
+    'tanh',
+    'asinh',
+    'acosh',
+    'atanh',
+    'ln',
+    'log',
+    'log2',
+    'exp',
+    'abs',
+    'sqrt',
+    'cbrt',
   };
 
   void skipSpaces() {
@@ -164,7 +235,8 @@ final class _Scanner {
     if (radix == 16 && ClipboardSanitizer._isLetter(c)) {
       // A run of letters is a hex word unless it spells an operator.
       var end = pos;
-      while (end < chars.length && (ClipboardSanitizer._isLetter(chars[end]) || ClipboardSanitizer._isDigit(chars[end]))) {
+      while (
+          end < chars.length && (ClipboardSanitizer._isLetter(chars[end]) || ClipboardSanitizer._isDigit(chars[end]))) {
         end++;
       }
       final word = chars.sublist(pos, end).join().toLowerCase();
@@ -264,7 +336,8 @@ final class _Scanner {
     }
     if (allowGrouping) {
       // Continental notation: 1.250.000,5 (dots group, the comma is decimal).
-      final match = _continental.matchAsPrefix(chars.sublist(pos, pos + 40 > chars.length ? chars.length : pos + 40).join());
+      final match =
+          _continental.matchAsPrefix(chars.sublist(pos, pos + 40 > chars.length ? chars.length : pos + 40).join());
       if (match != null) {
         final text = match[0]!;
         final comma = text.indexOf(',');
@@ -542,7 +615,8 @@ final class _Scanner {
         p += 3;
       } else {
         final letter = chars[p];
-        out.add(letter == 'e' || letter == 'i' ? AtomNode(letter, AtomKind.constant) : AtomNode(letter, AtomKind.variable));
+        out.add(
+            letter == 'e' || letter == 'i' ? AtomNode(letter, AtomKind.constant) : AtomNode(letter, AtomKind.variable));
         p += 1;
       }
       pos = p;
