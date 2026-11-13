@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="appBackground">#000000</color>
-    <color name="statusBar">#000000</color>
-    <color name="navigationBar">#000000</color>
-    <color name="accent">#FF9F0A</color>
-    <color name="lcdGreen">#C7E0B2</color>
-</resources>
