@@ -67,12 +67,14 @@ jobs:
 
       - name: Gate 3 - Flutter test-suite (notifier, isolate cancellation, widgets)
         if: ${{ !cancelled() }}
-        run: flutter test --reporter expanded 2>&1 | tee "$OUT/report-flutter-test.txt"
+        timeout-minutes: 10
+        run: flutter test --timeout 120s --reporter expanded 2>&1 | tee "$OUT/report-flutter-test.txt"
         shell: bash -eo pipefail {0}
 
       - name: Render screenshots
         if: ${{ !cancelled() }}
-        run: CALC_SCREENSHOTS=1 flutter test test/screenshots --reporter expanded 2>&1 | tee "$OUT/report-screenshots.txt"
+        timeout-minutes: 6
+        run: CALC_SCREENSHOTS=1 flutter test test/screenshots --timeout 90s --reporter expanded 2>&1 | tee "$OUT/report-screenshots.txt"
         shell: bash -eo pipefail {0}
 
       # --- temporary development aids ---------------------------------------
