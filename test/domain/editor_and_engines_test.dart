@@ -172,6 +172,8 @@ void main() {
       expect(calc('∫(0, 1, x) + 10^15'), '1000000000000000.5');
       // Subtracting a close number leaves the rounding of the integral, which is not a result.
       expect(calc('∫(0, π, sin(x)^2) - π/2', rad), '0');
+      // A non-integer factorial is good for 15 digits (Spouge).
+      expect(calc('0.5! + 1/3'), '1.219560258786091');
       // A numerical result that does not reach the answer costs nothing …
       expect(calc('0 × ∫(0, 1, x) + 1/3'), '0.3333333333333333333333333333333333');
       // … and neither does an expression without one.

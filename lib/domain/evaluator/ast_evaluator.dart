@@ -59,6 +59,10 @@ final class AstEvaluator {
   /// outside the body of another numerical method.
   final Map<AstNode, (Decimal, Decimal)> _numerical = Map<AstNode, (Decimal, Decimal)>.identity();
 
+  /// Whether the running evaluation used a value that is not good to the
+  /// full working precision (`∫`, `d/dx`, a non-integer factorial).
+  bool _approximated = false;
+
   /// Nesting depth of `∫` / `d/dx` bodies being sampled.
   int _sampling = 0;
 
@@ -89,22 +93,24 @@ final class AstEvaluator {
   /// trusted to.
   ///
   /// `∫` and `d/dx` are numerical methods, good for about
-  /// [CalculusEngine.resultPrecision] digits, and whatever is computed from
-  /// them is no better: `∫(0, π, sin(x)²) + 3e^(−1/2)` would print 34 digits
-  /// of which 14 are right, and `Ans` would carry the other 20 into the next
-  /// line. How much of the final value is affected depends on what happened
-  /// to the numerical result on the way - adding 512 costs nothing,
-  /// subtracting a close number costs nearly everything - so it is measured:
-  /// the expression is evaluated a second time with every numerical result
-  /// moved by its error bound, and the digits the two runs share are kept.
-  /// The second run reuses the numerical results; it only repeats the
+  /// [CalculusEngine.resultPrecision] digits (a non-integer factorial for
+  /// [GammaCombinatorics.gammaDigits]), and whatever is computed from them is
+  /// no better: `∫(0, π, sin(x)²) + 3e^(−1/2)` would print 34 digits of which
+  /// 14 are right, and `Ans` would carry the other 20 into the next line.
+  /// How much of the final value is affected depends on what happened to the
+  /// numerical result on the way - adding 512 costs nothing, subtracting a
+  /// close number costs nearly everything - so it is measured: the
+  /// expression is evaluated a second time with every numerical result moved
+  /// by its error bound, and the digits the two runs share are kept. The
+  /// second run reuses the integrals and derivatives; it only repeats the
   /// arithmetic around them.
   CalcValue _settled(CalcValue Function() run) {
     _numerical.clear();
+    _approximated = false;
     _sampling = 0;
     _nudging = false;
     final value = run();
-    if (_displayOverrides[value] != null || !_numerical.values.any((r) => !Dec.isZero(r.$2))) return value;
+    if (!_approximated || _displayOverrides[value] != null) return value;
     CalcValue? nudged;
     _nudging = true;
     try {
@@ -176,8 +182,22 @@ final class AstEvaluator {
     } finally {
       _sampling--;
     }
-    if (_sampling == 0 && !_nudging) _numerical[node] = (value, bound);
+    if (_sampling == 0 && !_nudging) {
+      _numerical[node] = (value, bound);
+      if (!Dec.isZero(bound)) _approximated = true;
+    }
     return _dv(value);
+  }
+
+  /// Unpacks a factorial: the display form of a giant one, the error bound
+  /// of an approximated one.
+  CalcValue _factorialValue(FactorialResult result) {
+    final value = result.value;
+    if (result.display != null) _displayOverrides[value] = result.display;
+    final bound = result.uncertainty;
+    if (bound == null || _sampling > 0 || value is! DecimalVal) return value;
+    _approximated = true;
+    return _nudging ? _dv(Dec.add(value.value, bound)) : value;
   }
 
   // ------------------------------------------------------------------ walker
@@ -219,9 +239,7 @@ final class AstEvaluator {
           case PostfixOp.degree:
             return _fromDegrees(v);
           case PostfixOp.factorial:
-            final result = GammaCombinatorics.factorial(v, token: token);
-            if (result.display != null) _displayOverrides[result.value] = result.display;
-            return result.value;
+            return _factorialValue(GammaCombinatorics.factorial(v, token: token));
         }
       case FunctionNode(:final name, :final args):
         return _call(name, <CalcValue>[for (final a in args) _eval(a, scope)]);
@@ -810,11 +828,9 @@ final class AstEvaluator {
         }
         return best;
       case 'fact':
-        final result = GammaCombinatorics.factorial(one(), token: token);
-        if (result.display != null) _displayOverrides[result.value] = result.display;
-        return result.value;
+        return _factorialValue(GammaCombinatorics.factorial(one(), token: token));
       case 'gamma':
-        return GammaCombinatorics.gamma(one(), token: token);
+        return _factorialValue(GammaCombinatorics.gamma(one(), token: token));
       case 'ncr':
         _arity(name, args, 2);
         return GammaCombinatorics.nCr(args[0], args[1], token: token);

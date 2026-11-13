@@ -11,12 +11,16 @@ import 'transcendental_engine.dart';
 
 /// Outcome of a factorial evaluation.
 final class FactorialResult {
-  const FactorialResult(this.value, {this.display});
+  const FactorialResult(this.value, {this.display, this.uncertainty});
 
   final CalcValue value;
 
   /// Set for log-Stirling results: `"4.2285779266 × 10^16325"`.
   final String? display;
+
+  /// Set for Spouge results: how far [value] may be off - one unit of the
+  /// last digit it is kept to.
+  final Decimal? uncertainty;
 }
 
 /// Gamma function, factorials and counting functions.
@@ -84,14 +88,23 @@ abstract final class GammaCombinatorics {
     return Dec.mul(Transcendental.exp(t, prec: 40, token: token), sum, 40);
   }
 
+  /// Spouge's approximation, kept to [gammaDigits] digits.
+  static FactorialResult _spouge(Decimal z, CancellationToken? token) {
+    final value = Dec.round(spougeGamma(z, token: token), gammaDigits);
+    return FactorialResult(
+      DecimalVal(value),
+      uncertainty: Dec.isZero(value) ? null : Dec.compose(BigInt.one, Dec.adjExp(value) - gammaDigits + 1),
+    );
+  }
+
   /// `Gamma(x)` as a calculator value.
-  static CalcValue gamma(CalcValue x, {CancellationToken? token}) {
+  static FactorialResult gamma(CalcValue x, {CancellationToken? token}) {
     final n = _integerOf(x);
     if (n != null) {
       if (n.sign <= 0) throw const DomainError('Gamma is undefined at zero and negative integers');
-      return factorial(Values.ofBigInt(n - BigInt.one), token: token).value;
+      return factorial(Values.ofBigInt(n - BigInt.one), token: token);
     }
-    return DecimalVal(Dec.round(spougeGamma(x.asDecimal, token: token), gammaDigits));
+    return _spouge(x.asDecimal, token);
   }
 
   /// `x!` routed as demanded by the blueprint:
@@ -104,8 +117,7 @@ abstract final class GammaCombinatorics {
     if (x is MatrixVal) throw const DimensionError('Factorial of a matrix');
     final n = _integerOf(x);
     if (n != null) return _integerFactorial(n, token);
-    final z = Dec.add(x.asDecimal, Dec.one, 1000);
-    return FactorialResult(DecimalVal(Dec.round(spougeGamma(z, token: token), gammaDigits)));
+    return _spouge(Dec.add(x.asDecimal, Dec.one, 1000), token);
   }
 
   static FactorialResult _integerFactorial(BigInt n, CancellationToken? token) {
