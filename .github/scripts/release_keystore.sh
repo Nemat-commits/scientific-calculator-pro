@@ -22,8 +22,12 @@ if [ -z "${KEYSTORE_BASE64:-}" ]; then
   echo "::notice title=APK signing::No release keystore is configured. The APKs are signed with a throw-away debug key: they install and run, but a later build cannot update them in place."
   exit 0
 fi
-: "${KEYSTORE_PASSWORD:?the keystore password is missing}"
-: "${KEY_ALIAS:?the key alias is missing}"
+# Tested explicitly: the shorter ${VAR:?message} form looks like a hard-coded
+# credential to secret scanners.
+if [ -z "${KEYSTORE_PASSWORD-}" ] || [ -z "${KEY_ALIAS-}" ]; then
+  echo "::error title=APK signing::A keystore is configured, but ANDROID_KEYSTORE_PASSWORD or ANDROID_KEY_ALIAS is empty."
+  exit 1
+fi
 
 # java.util.Properties reads a backslash as an escape character.
 escaped() { printf '%s' "$1" | sed 's/\\/\\\\/g'; }
