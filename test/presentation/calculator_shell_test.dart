@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modern_scientific_calculator/presentation/screens/calculator_shell_screen.dart';
@@ -40,6 +41,49 @@ void main() {
     await tapAll(tester, <Finder>[standardKey('+'), standardKey('8'), standardKey('=')]);
     expect(stateOf(container).livePreviewPrimary, '50');
     expect(container.read(historyProvider).entries, hasLength(2));
+  });
+
+  testWidgets('hardware keyboard: the typed character decides, not the key cap', (tester) async {
+    final container = await pumpCalculator(tester);
+    final notifier = container.read(calculatorProvider.notifier);
+    Future<void> key(LogicalKeyboardKey k, [String? character]) async {
+      await tester.sendKeyEvent(k, character: character);
+      await tester.pump(const Duration(milliseconds: 60));
+    }
+
+    await key(LogicalKeyboardKey.digit7, '7');
+    await key(LogicalKeyboardKey.digit8, '*'); // Shift+8
+    await key(LogicalKeyboardKey.digit6, '6');
+    await settle(tester);
+    expect(notifier.expressionText(), '7×6');
+    await key(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(stateOf(container).inputPhase, InputPhase.committedResult);
+    expect(stateOf(container).livePreviewPrimary, '42');
+
+    // Enter again: nothing changed, so the tape keeps a single line.
+    await key(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(container.read(historyProvider).entries, hasLength(1));
+
+    // Shift+"=" types a plus sign and continues from Ans.
+    await key(LogicalKeyboardKey.equal, '+');
+    await key(LogicalKeyboardKey.digit8, '8');
+    expect(notifier.expressionText(), 'Ans+8');
+    await key(LogicalKeyboardKey.equal, '=');
+    await settle(tester);
+    expect(stateOf(container).livePreviewPrimary, '50');
+
+    // "=" on an Ans expression repeats the step with the new Ans.
+    await key(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(stateOf(container).livePreviewPrimary, '58');
+    expect(container.read(historyProvider).entries, hasLength(3));
+
+    await key(LogicalKeyboardKey.backspace);
+    expect(stateOf(container).inputPhase, InputPhase.editing);
+    await key(LogicalKeyboardKey.escape);
+    expect(stateOf(container).rootSequence.isEmpty, isTrue);
   });
 
   testWidgets('the smart parenthesis key opens and closes groups', (tester) async {

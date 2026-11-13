@@ -111,25 +111,28 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
-      - name: Build release APK
+      # One APK per ABI (small downloads) and one universal APK that runs on
+      # every device and on the x86_64 emulator of the smoke test.
+      - name: Build release APKs
         run: |
-          flutter build apk --release 2>&1 | tee "$OUT/report-apk.txt"
+          flutter build apk --release --split-per-abi 2>&1 | tee "$OUT/report-apk.txt"
+          flutter build apk --release 2>&1 | tee -a "$OUT/report-apk.txt"
           ls -l build/app/outputs/flutter-apk/ | tee -a "$OUT/report-apk.txt"
           sha256sum build/app/outputs/flutter-apk/*.apk | tee -a "$OUT/report-apk.txt"
         shell: bash -eo pipefail {0}
 
-      - name: Upload APK
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: scientific-calculator-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
 
       - name: Publish reports (dev aid)
         if: ${{ always() }}
         run: |
           bash .github/scripts/dev_reports.sh
-          bash .github/scripts/dev_carry.sh apk build/app/outputs/flutter-apk/app-release.apk
+          bash .github/scripts/dev_carry.sh apk build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 
   emulator-smoke:
     name: Emulator smoke test

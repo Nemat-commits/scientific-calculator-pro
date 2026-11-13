@@ -28,23 +28,25 @@ adb shell "input text '7*6'"; sleep 3
 shot 02_typed
 adb shell input keyevent 66; sleep 3          # ENTER commits
 shot 03_committed
-adb shell "input text '+8'"; adb shell input keyevent 66; sleep 3
+adb shell "input text '+8'"; adb shell input keyevent 66; sleep 3   # continues from Ans -> 50
 shot 04_ans_plus_8
 
 adb shell settings put system user_rotation 1; sleep 5
 shot 05_landscape
 adb shell settings put system user_rotation 0; sleep 5
 
-# History tab: fifth segment of the tab bar (display card = top 35 %, bar = next 7 %).
-adb shell input tap $((W * 90 / 100)) $((H * 395 / 1000)); sleep 3
-shot 06_history_tab
+# The five segments of the tab bar (display card = top 35 %, bar = next 7 %).
+tab() { adb shell input tap $((W * (10 + 20 * $1) / 100)) $((H * 395 / 1000)); sleep 3; }
+tab 1; shot 06_scientific_tab
+tab 2; shot 06_lab_tab
+tab 3; shot 06_convert_tab
+tab 4; shot 06_history_tab
 
 adb shell am force-stop "$PKG"; sleep 2
 adb shell am start -W -n "$PKG/.MainActivity" >> "$OUT/smoke.log" 2>&1
 sleep 8
 shot 07_after_restart
-adb shell input tap $((W * 90 / 100)) $((H * 395 / 1000)); sleep 3
-shot 08_history_after_restart
+tab 4; shot 08_history_after_restart
 [ -n "$(alive)" ] || { note "FAIL: process is not running after restart"; fail=1; }
 
 adb logcat -d > "$OUT/logcat_full.txt" 2>/dev/null

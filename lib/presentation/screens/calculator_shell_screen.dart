@@ -68,40 +68,43 @@ class _CalculatorShellScreenState extends ConsumerState<CalculatorShellScreen> {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final notifier = ref.read(calculatorProvider.notifier);
     final key = event.logicalKey;
-    CalcKey? mapped;
-    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter || key == LogicalKeyboardKey.equal) {
-      mapped = const EvaluateKey();
-    } else if (key == LogicalKeyboardKey.backspace) {
-      mapped = const BackspaceKey();
-    } else if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.delete) {
-      mapped = const ClearKey();
-    } else if (key == LogicalKeyboardKey.arrowLeft) {
-      mapped = const MoveKey(CursorDirection.left);
-    } else if (key == LogicalKeyboardKey.arrowRight) {
-      mapped = const MoveKey(CursorDirection.right);
-    } else if (key == LogicalKeyboardKey.arrowUp) {
-      mapped = const MoveKey(CursorDirection.up);
-    } else if (key == LogicalKeyboardKey.arrowDown) {
-      mapped = const MoveKey(CursorDirection.down);
-    } else {
-      final character = event.character;
-      if (character != null && character.length == 1) {
-        mapped = switch (character) {
-          '+' => const AtomKey('+', AtomKind.binaryOp),
-          '-' => const AtomKey('−', AtomKind.binaryOp),
-          '*' => const AtomKey('×', AtomKind.binaryOp),
-          '/' => const AtomKey('÷', AtomKind.binaryOp),
-          '^' => const TemplateKey(TemplateKind.power),
-          '(' => const AtomKey('(', AtomKind.paren),
-          ')' => const AtomKey(')', AtomKind.paren),
-          '!' => const AtomKey('!', AtomKind.unaryPostfix),
-          '%' => const AtomKey('%', AtomKind.unaryPostfix),
-          '.' || ',' => const AtomKey('.', AtomKind.digit),
-          'x' => const AtomKey('x', AtomKind.variable),
-          'e' => const AtomKey('e', AtomKind.constant),
-          'p' => const AtomKey('π', AtomKind.constant),
-          _ => RegExp(r'^\d$').hasMatch(character) ? AtomKey(character, AtomKind.digit) : null,
-        };
+    // The produced character decides first: on most layouts `+` is Shift+`=`
+    // and `*` is Shift+`8`, so the logical key alone would be misleading.
+    final character = event.character;
+    CalcKey? mapped = character == null || character.length != 1
+        ? null
+        : switch (character) {
+            '=' => const EvaluateKey(),
+            '+' => const AtomKey('+', AtomKind.binaryOp),
+            '-' => const AtomKey('−', AtomKind.binaryOp),
+            '*' => const AtomKey('×', AtomKind.binaryOp),
+            '/' => const AtomKey('÷', AtomKind.binaryOp),
+            '^' => const TemplateKey(TemplateKind.power),
+            '(' => const AtomKey('(', AtomKind.paren),
+            ')' => const AtomKey(')', AtomKind.paren),
+            '!' => const AtomKey('!', AtomKind.unaryPostfix),
+            '%' => const AtomKey('%', AtomKind.unaryPostfix),
+            '.' || ',' => const AtomKey('.', AtomKind.digit),
+            'x' => const AtomKey('x', AtomKind.variable),
+            'e' => const AtomKey('e', AtomKind.constant),
+            'p' => const AtomKey('π', AtomKind.constant),
+            _ => RegExp(r'^\d$').hasMatch(character) ? AtomKey(character, AtomKind.digit) : null,
+          };
+    if (mapped == null) {
+      if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
+        mapped = const EvaluateKey();
+      } else if (key == LogicalKeyboardKey.backspace) {
+        mapped = const BackspaceKey();
+      } else if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.delete) {
+        mapped = const ClearKey();
+      } else if (key == LogicalKeyboardKey.arrowLeft) {
+        mapped = const MoveKey(CursorDirection.left);
+      } else if (key == LogicalKeyboardKey.arrowRight) {
+        mapped = const MoveKey(CursorDirection.right);
+      } else if (key == LogicalKeyboardKey.arrowUp) {
+        mapped = const MoveKey(CursorDirection.up);
+      } else if (key == LogicalKeyboardKey.arrowDown) {
+        mapped = const MoveKey(CursorDirection.down);
       }
     }
     if (mapped == null) return KeyEventResult.ignored;

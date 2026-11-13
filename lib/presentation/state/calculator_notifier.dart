@@ -61,6 +61,10 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
   late HapticService _haptics;
   final AstEvaluator _arithmetic = AstEvaluator();
   Timer? _heavyTimer;
+
+  /// Expression, result and angle unit of the latest commit; pressing `=`
+  /// again without any change must not add the same line to the tape twice.
+  (String, String, String)? _lastCommit;
   int _ticket = 0;
 
   @override
@@ -234,6 +238,10 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
       _haptics.medium();
       _drafts.clear();
       unawaited(_repository.saveVariable('Ans', value));
+      final commit = (outcome.expression!, outcome.primary!, snapshot.angleUnit.name);
+      final repeated = snapshot.inputPhase == InputPhase.committedResult && commit == _lastCommit;
+      _lastCommit = commit;
+      if (repeated) return;
       await _repository.addHistory(
         expressionJson: jsonEncode(snapshot.rootSequence.toJson()),
         expressionText: outcome.expression!,
