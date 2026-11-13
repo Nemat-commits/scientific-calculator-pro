@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- bgObsidian: the window is OLED-dark from the very first frame. -->
+    <color name="obsidian">#090B10</color>
+    <color name="launcher_background">#0B0F17</color>
+</resources>

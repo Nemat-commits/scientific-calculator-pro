@@ -1,0 +1,40 @@
+name: modern_scientific_calculator
+description: Production 120Hz Multi-Tabbed Scientific Calculator with 2D MathPrint Engine.
+publish_to: 'none'
+version: 3.0.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  decimal: ^3.0.2
+  rational: ^2.2.3
+  drift: ^2.20.0
+  sqlite3_flutter_libs: ^0.5.24
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  flutter_displaymode: ^0.6.0
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # `test` drives the headless, Flutter-free gate checks of the blueprint
+  # (`dart test test/domain/...`); flutter_test alone cannot run under plain Dart.
+  test: ^1.25.0
+  drift_dev: ^2.20.0
+  build_runner: ^2.4.12
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: false
+
+  # JetBrains Mono + Inter (SIL OFL 1.1), subset to the glyphs the calculator
+  # uses. package:google_fonts picks these files up instead of fetching the
+  # fonts at runtime, so the app is fully functional offline.
+  assets:
+    - assets/google_fonts/

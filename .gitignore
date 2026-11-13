@@ -1,54 +1,55 @@
-# ---------------------------------------------------------------------------
-# Signing material & local secrets — NEVER commit these
-# ---------------------------------------------------------------------------
-*.keystore
-*.jks
+# Dart / Flutter
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+/build/
+/coverage/
+.flutter-plugins
+.flutter-plugins-dependencies
+app.*.symbols
+app.*.map.json
+migrate_working_dir/
+.widget_preview/
+
+# Android
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/.gradle
+/android/captures/
+/android/gradlew
+/android/gradlew.bat
+/android/local.properties
+/android/gradle/wrapper/gradle-wrapper.jar
+**/GeneratedPluginRegistrant.java
+.cxx/
+
+# Signing material & local secrets - never commit these
+key.properties
+keystore.properties
+**/*.keystore
+**/*.jks
 *.p12
 *.pem
-keystore.properties
-local.properties
 .env
 .env.*
 
-# ---------------------------------------------------------------------------
-# Node / Vite
-# ---------------------------------------------------------------------------
-node_modules/
-.vite/
-*.local
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# Build artefacts are not kept in git (see README, "Download")
+*.apk
+*.aab
+*.ipa
 
-# ---------------------------------------------------------------------------
-# Android / Gradle
-# ---------------------------------------------------------------------------
-.gradle/
-build/
-captures/
-.externalNativeBuild/
-.cxx/
-*.iml
-output-metadata.json
-
-# ---------------------------------------------------------------------------
 # IDE / OS
-# ---------------------------------------------------------------------------
 .idea/
 .vscode/
+*.iml
+*.ipr
+*.iws
 .DS_Store
 Thumbs.db
 *.swp
+*.log
 
-# ---------------------------------------------------------------------------
-# Build output
-dist/
-
-# Build scratch
-# ---------------------------------------------------------------------------
-.work/
-tmp/
-
-# Offline APK build toolchain (aapt2, JDK, android.jar)
-.apktools/
+# Golden-test failure output
+**/failures/
