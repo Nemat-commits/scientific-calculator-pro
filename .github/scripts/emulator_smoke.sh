@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Installs the release APK on the running emulator and drives the real app:
 # hardware-keyboard input, "=" commit, a 16 326-digit factorial, rotation,
-# every tab and a cold restart (history must come back from SQLite).
-# Screenshots and logcat go to $2.
+# every tab and a cold restart. Screenshots and logcat go to $2.
+#
+# The script fails when the app is not running or logcat shows an error. It
+# does not read the screen: that the results are right and that the history
+# is back from SQLite after the restart is to be seen in the screenshots.
 #
 #   emulator_smoke.sh <apk> <output-dir>
 set -uo pipefail

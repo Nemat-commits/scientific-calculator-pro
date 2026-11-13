@@ -6,8 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write   # TEMPORARY (dev_carry.sh creates unreferenced blobs); back to `read` when finished
-  checks: write     # TEMPORARY (dev_reports.sh)
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -19,7 +18,6 @@ defaults:
 
 env:
   FLUTTER_VERSION: '3.50.0'
-  GH_TOKEN: ${{ github.token }}
 
 jobs:
   verify:
@@ -35,49 +33,46 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Prepare report directory
-        run: |
-          mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
-          echo "ImageOS=${ImageOS:-?} ImageVersion=${ImageVersion:-?} kernel=$(uname -r) runner=${RUNNER_NAME:-?}" > "$RUNNER_TEMP/out/report-image-verify.txt"
-
       - name: Resolve dependencies
-        run: flutter pub get 2>&1 | tee "$OUT/report-pubget.txt"
+        run: flutter pub get
 
+      # The steps below run even when an earlier one failed, so that one run
+      # reports everything that is wrong.
       - name: Generated Drift code is up to date
         if: ${{ !cancelled() }}
         run: |
-          dart run build_runner build 2>&1 | tee "$OUT/report-buildrunner.txt"
-          git diff --stat --exit-code -- lib/data/local_db/app_database.g.dart 2>&1 | tee -a "$OUT/report-buildrunner.txt"
+          dart run build_runner build
+          git diff --stat --exit-code -- lib/data/local_db/app_database.g.dart
 
       - name: Static analysis
         if: ${{ !cancelled() }}
-        run: flutter analyze 2>&1 | tee "$OUT/report-analyze.txt"
+        run: flutter analyze
 
       - name: Formatting
         if: ${{ !cancelled() }}
-        run: dart format --output=none --set-exit-if-changed $(git ls-files 'lib/*.dart' 'test/*.dart' | grep -v '\.g\.dart$') 2>&1 | tee "$OUT/report-format.txt"
+        run: dart format --output=none --set-exit-if-changed $(git ls-files 'lib/*.dart' 'test/*.dart' | grep -v '\.g\.dart$')
 
       - name: Gate 1 - MathEngine (TC-01..TC-20), headless Dart
         if: ${{ !cancelled() }}
-        run: dart test test/domain/engine_verification_test.dart --plain-name "MathEngine" --reporter expanded 2>&1 | tee "$OUT/report-gate1.txt"
+        run: dart test test/domain/engine_verification_test.dart --plain-name "MathEngine" --reporter expanded
 
       - name: Gate 2 - all 24 verification cases, headless Dart
         if: ${{ !cancelled() }}
-        run: dart test test/domain/engine_verification_test.dart --reporter expanded 2>&1 | tee "$OUT/report-gate2.txt"
+        run: dart test test/domain/engine_verification_test.dart --reporter expanded
 
       - name: Domain test-suite, headless Dart
         if: ${{ !cancelled() }}
-        run: dart test test/domain --reporter expanded 2>&1 | tee "$OUT/report-domain.txt"
+        run: dart test test/domain --reporter expanded
 
       - name: Gate 3 - Flutter test-suite (notifier, isolate cancellation, widgets)
         if: ${{ !cancelled() }}
         timeout-minutes: 10
-        run: flutter test --timeout 120s --reporter expanded 2>&1 | tee "$OUT/report-flutter-test.txt"
+        run: flutter test --timeout 120s --reporter expanded
 
       - name: Render screenshots
         if: ${{ !cancelled() }}
         timeout-minutes: 6
-        run: CALC_SCREENSHOTS=1 flutter test test/screenshots --timeout 90s --reporter expanded 2>&1 | tee "$OUT/report-screenshots.txt"
+        run: CALC_SCREENSHOTS=1 flutter test test/screenshots --timeout 90s --reporter expanded
 
       - name: Upload screenshots
         if: ${{ !cancelled() }}
@@ -86,15 +81,6 @@ jobs:
           name: screenshots
           path: build/screenshots/*.png
           if-no-files-found: warn
-
-      # --- temporary development aids ---------------------------------------
-      - name: Publish reports (dev aid)
-        if: ${{ always() }}
-        run: |
-          bash .github/scripts/dev_reports.sh
-          cd "$RUNNER_TEMP"
-          [ -d "$GITHUB_WORKSPACE/build/screenshots" ] && tar -C "$GITHUB_WORKSPACE/build/screenshots" -cf shots.tar . || true
-          bash "$GITHUB_WORKSPACE/.github/scripts/dev_carry.sh" verify shots.tar
 
   build-android:
     name: Android release APK
@@ -115,11 +101,6 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Prepare report directory
-        run: |
-          mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
-          echo "ImageOS=${ImageOS:-?} ImageVersion=${ImageVersion:-?} kernel=$(uname -r) runner=${RUNNER_NAME:-?}" > "$RUNNER_TEMP/out/report-image-apk.txt"
-
       - name: Resolve dependencies
         run: flutter pub get
 
@@ -138,8 +119,8 @@ jobs:
       # every device and on the x86_64 emulator of the smoke test.
       - name: Build release APKs
         run: |
-          flutter build apk --release --split-per-abi 2>&1 | tee "$OUT/report-apk.txt"
-          flutter build apk --release 2>&1 | tee -a "$OUT/report-apk.txt"
+          flutter build apk --release --split-per-abi
+          flutter build apk --release
 
       # Fails when an APK is not properly signed; the run summary lists what
       # was built and who signed it.
@@ -159,8 +140,8 @@ jobs:
             signer="$(echo "$certs" | sed -n 's/^.*certificate DN: //p' | head -n 1)"
             digest="$(echo "$certs" | sed -n 's/^.*certificate SHA-256 digest: //p' | head -n 1)"
             echo "| $(basename "$apk") | $(stat -c %s "$apk") | \`$(sha256sum "$apk" | cut -d' ' -f1)\` | $signer (\`${digest:0:16}…\`) |" >> "$GITHUB_STEP_SUMMARY"
-          done 2>&1 | tee "$OUT/report-sign.txt"
-          sha256sum build/app/outputs/flutter-apk/*.apk | tee -a "$OUT/report-apk.txt"
+          done
+          sha256sum build/app/outputs/flutter-apk/*.apk
 
       # Every APK is an artifact of its own and is stored as it is, not inside
       # a zip, so that it can be downloaded straight onto a device. Such an
@@ -193,15 +174,6 @@ jobs:
           archive: false
           if-no-files-found: error
 
-      # --- temporary development aids ---------------------------------------
-      - name: Carry APKs (dev aid)
-        if: ${{ always() }}
-        run: bash .github/scripts/dev_carry.sh apk build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-
-      - name: Publish reports (dev aid)
-        if: ${{ always() }}
-        run: bash .github/scripts/dev_reports.sh
-
   emulator-smoke:
     name: Emulator smoke test
     needs: build-android
@@ -223,13 +195,6 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Prepare report directory
-        run: |
-          mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
-          echo "ImageOS=${ImageOS:-?} ImageVersion=${ImageVersion:-?} kernel=$(uname -r) runner=${RUNNER_NAME:-?}" > "$RUNNER_TEMP/out/report-image-smoke.txt"
-          ls -lR apk >> "$RUNNER_TEMP/out/report-image-smoke.txt" 2>&1 || true
-          sha256sum apk/* >> "$RUNNER_TEMP/out/report-image-smoke.txt" 2>&1 || true
-
       - name: Run the app on an Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -239,7 +204,7 @@ jobs:
           profile: pixel_6
           disable-animations: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: bash .github/scripts/emulator_smoke.sh apk/app-release.apk smoke > "$OUT/report-smoke.txt" 2>&1; code=$?; cat "$OUT/report-smoke.txt"; exit $code
+          script: bash .github/scripts/emulator_smoke.sh apk/app-release.apk smoke
 
       - name: Upload emulator screenshots and logcat
         if: ${{ !cancelled() }}
@@ -248,10 +213,3 @@ jobs:
           name: emulator-smoke
           path: smoke/
           if-no-files-found: warn
-
-      - name: Publish reports (dev aid)
-        if: ${{ always() }}
-        run: |
-          bash .github/scripts/dev_reports.sh
-          tar -cf "$RUNNER_TEMP/smoke.tar" smoke || true
-          bash .github/scripts/dev_carry.sh smoke "$RUNNER_TEMP/smoke.tar"

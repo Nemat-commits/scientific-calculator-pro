@@ -51,7 +51,7 @@ editable structure. Pulling the handle down opens the recent history.
 | Scientific | Trigonometric, hyperbolic and inverse functions, `ln`, `log`, `log₂`, `logₐ`, powers and roots, fraction and absolute-value templates, `π`, `e`, `φ`, `i`, `×10ˣ`, factorial and gamma, `nCr`, `nPr`, `mod`, definite integral and derivative, variables `x`, `y`, `M`, `Ans`. `INV` and `HYP` change the key faces and release after one key. |
 | Lab | **Solver:** quadratic and cubic equations; rational roots stay exact fractions, complex roots are shown. **Matrix:** two matrices up to 4×4; sum, difference, product, determinant, inverse, transpose, rank, trace. **Table:** values of the current expression over a range. **Stats:** one-variable summary (mean, sums, both standard deviations, quartiles) and two-variable linear regression. **Base-N:** HEX, DEC, OCT, BIN at 8, 16, 32 or 64 bits, signed or unsigned, with `AND OR XOR NOT << >>`. |
 | Convert | Twelve categories (length, mass, temperature, area, volume, speed, time, data, pressure, energy, power, angle), all units of a category at once, and 24 physical constants (CODATA 2022) that can be inserted into the expression. |
-| History | Searchable tape of past calculations stored in SQLite, reuse of any result as `Ans`, and the variable slots. |
+| History | Searchable tape of past calculations stored in SQLite: a tap brings an expression back for editing, `Ans` inserts its result. Variable slots (`Ans`, `M`, `A`–`F`, `x`, `y`) can be inserted, filled from the last answer or cleared. |
 
 In portrait one tab is visible at a time; from 600 dp of width the standard
 keypad and the display stay on screen next to the other tabs. A swipe on the
@@ -69,10 +69,12 @@ hold the network permission, and its fonts are bundled.
 
 APKs are not stored in git. Every run of the
 [CI workflow](https://github.com/Nemat-commits/scientific-calculator-pro/actions/workflows/ci.yml)
-attaches them to the run as the artifact `scientific-calculator-apk`
-(a GitHub login is needed to download artifacts; they are kept for 90 days).
+attaches them to the run: open the newest run with a green check mark and
+scroll down to **Artifacts**. Each APK is an artifact of its own and is
+stored as it is, so the download is the `.apk` file, not a zip. A GitHub
+login is needed to download artifacts, and they are kept for 90 days.
 
-| File | Size | Use it for |
+| Artifact | Size | Use it for |
 | --- | --- | --- |
 | `app-arm64-v8a-release.apk` | 19 MB | Phones and tablets running 64-bit ARM Android (most current devices). |
 | `app-armeabi-v7a-release.apk` | 17 MB | 32-bit ARM Android: older devices and many entry-level ones. |
@@ -161,7 +163,7 @@ CALC_SCREENSHOTS=1 flutter test test/screenshots                                
 
 | Suite | What it covers |
 | --- | --- |
-| `test/domain/engine_verification_test.dart` | The 24 verification cases of the blueprint (TC-01 … TC-24), their time budget and the precision constants. |
+| `test/domain/engine_verification_test.dart` | The 24 verification cases of [the blueprint](#design-decisions-and-deviations-from-the-blueprint) (TC-01 … TC-24), their time budget and the precision constants. |
 | `test/domain/editor_and_engines_test.dart` | Editor tree and cursor, paste clean-up, formatter, calculus, solver, matrices, statistics, Base-N, unit conversion. |
 | `test/presentation/calculator_notifier_test.dart` | Live preview, what the next key does after `=`, errors, undo, memory, variables, persistence of modes and draft. |
 | `test/presentation/evaluator_isolate_pool_test.dart` | Evaluation on a worker isolate, cancellation by newer input, the 250 ms preview budget, the watchdog that replaces a stuck worker. |
@@ -170,8 +172,11 @@ CALC_SCREENSHOTS=1 flutter test test/screenshots                                
 
 `.github/scripts/emulator_smoke.sh <apk> <out-dir>` drives a release APK on a
 running emulator or device through `adb`: typed input, `=`, `Ans`, `5000!`,
-rotation, all tabs, and a forced stop followed by a restart after which the
-history must still be there. It fails on any Flutter error or crash in logcat.
+rotation, all tabs, and a forced stop followed by a restart, with a
+screenshot after every step. It fails when the app is no longer running or
+when logcat shows a Flutter error or a crash. It does not read the screen:
+whether the results are right and the history is back after the restart is
+for a person to see in the screenshots.
 
 ## Continuous integration
 
@@ -182,7 +187,7 @@ branches and on pull requests, in three jobs:
    `flutter analyze`, `dart format` check, gates 1 to 3, screenshots
    (artifact `screenshots`).
 2. **Android release APK** — per-ABI and universal APKs, signature
-   verification (artifact `scientific-calculator-apk`).
+   verification (one artifact per APK, named after the file).
 3. **Emulator smoke test** — installs the universal APK on an API 34 x86_64
    emulator and runs the script above (artifact `emulator-smoke`: screenshots
    and logcat).
@@ -289,8 +294,10 @@ switched off.
 
 ## Design decisions and deviations from the blueprint
 
-The app follows `ARCHITECTURE_BLUEPRINT.md`. Where that document left a choice
-open, or where following it literally was not possible, this is what was done.
+The app was built to a written specification, `ARCHITECTURE_BLUEPRINT.md`
+("the blueprint"), which is not part of this repository. Where that document
+left a choice open, or where following it literally was not possible, this is
+what was done.
 
 - **Layout of the project.** The Flutter project is at the repository root.
   The editing controller is `math_print_controller.dart`; `AngleUnit` and
@@ -324,10 +331,10 @@ open, or where following it literally was not possible, this is what was done.
 
 ## What has been verified, and what has not
 
-On CI, for the commit this file was written with:
+On CI, with the code as it is in this commit:
 
 - `flutter analyze` reports no issues and `dart format` no changes.
-- All 24 blueprint cases pass and take about 10 ms together (budget 50 ms).
+- All 24 blueprint cases pass and take 10 to 15 ms together (budget 50 ms).
 - `flutter test`: 100 tests pass (62 of them engine and editor tests that
   also run under plain `dart test`); the 4 screenshot tests are skipped
   unless requested and pass when run.
@@ -335,7 +342,8 @@ On CI, for the commit this file was written with:
 - On an Android 14 (API 34) x86_64 emulator at 1080×2400 the release APK
   starts cold in under 3 s, computes typed input, `Ans` and `5000!`, lays out
   in landscape, shows all five tabs, and still has its history after being
-  force-stopped and restarted. Logcat contains no Flutter error.
+  force-stopped and restarted. Logcat contains no Flutter error. What the
+  screens show was read off the screenshots of the run.
 
 Not verified:
 
