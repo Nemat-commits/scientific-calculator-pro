@@ -12,6 +12,7 @@ import '../../domain/models/calc_value.dart';
 import '../../domain/models/editor_node.dart';
 import '../state/calculator_notifier.dart';
 import '../widgets/lab_widgets.dart';
+import '../widgets/result_text.dart';
 
 /// Tab 4: converter for 12 unit categories plus the CODATA constants.
 ///
@@ -43,7 +44,7 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
   UnitDef get _source {
     final category = _current;
     final id = _sourceUnit[category.id];
-    return id == null ? category.units.first : category.unit(id);
+    return id == null ? category.defaultUnit : category.unit(id);
   }
 
   CalcValue? _typed() {
@@ -55,12 +56,14 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
     }
   }
 
-  String _converted(CalcValue? value, UnitDef to) {
-    if (value == null) return '—';
+  /// [value] in the unit [to] as a canonical number string, or `null` when
+  /// there is nothing to show.
+  String? _converted(CalcValue? value, UnitDef to) {
+    if (value == null) return null;
     try {
-      return UnitConverterEngine.convertFormatted(value, _source, to).replaceAll('-', '−');
+      return UnitConverterEngine.convertFormatted(value, _source, to);
     } on CalcError {
-      return '—';
+      return null;
     }
   }
 
@@ -71,13 +74,14 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
 
   Widget _unitRow(UnitDef unit, CalcValue? value) {
     final active = identical(unit, _source);
+    final shown = active ? null : _converted(value, unit);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => setState(() {
         // Carry the shown value over to the newly selected unit.
         final carried = _converted(value, unit);
         _sourceUnit[_current.id] = unit.id;
-        if (carried != '—') _input = carried.contains('e') ? carried.replaceFirst('e', 'E') : carried;
+        if (carried != null) _input = carried.replaceFirst('e', 'E').replaceAll('-', '−');
       }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
@@ -110,15 +114,18 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
             const SizedBox(width: 8),
             Expanded(
               flex: 5,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  active ? (_input.isEmpty ? '0' : _input) : _converted(value, unit),
-                  maxLines: 1,
-                  style: AppTypography.mono(size: 15, weight: active ? AppWeight.medium : AppWeight.regular),
-                ),
-              ),
+              child: active || shown == null
+                  ? FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        // The unit being typed shows the keystrokes as they are.
+                        active ? AppTypography.signs(_input.isEmpty ? '0' : _input) : '—',
+                        maxLines: 1,
+                        style: AppTypography.mono(size: 15, weight: active ? AppWeight.medium : AppWeight.regular),
+                      ),
+                    )
+                  : ResultText(shown, fontSize: 15, weight: AppWeight.regular),
             ),
           ],
         ),

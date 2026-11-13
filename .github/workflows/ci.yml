@@ -77,14 +77,32 @@ jobs:
         run: CALC_SCREENSHOTS=1 flutter test test/screenshots --timeout 90s --reporter expanded 2>&1 | tee "$OUT/report-screenshots.txt"
         shell: bash -eo pipefail {0}
 
+      - name: Upload screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: build/screenshots/*.png
+          if-no-files-found: warn
+
       # --- temporary development aids ---------------------------------------
+      - name: Format sources (dev aid)
+        if: ${{ always() }}
+        run: |
+          git ls-files 'lib/*.dart' 'test/*.dart' | grep -v '\.g\.dart$' > "$RUNNER_TEMP/sources.txt"
+          dart format $(cat "$RUNNER_TEMP/sources.txt") 2>&1 | tail -n 30 | tee "$OUT/report-format.txt"
+          git diff --shortstat 2>&1 | tee -a "$OUT/report-format.txt"
+          tar -cf "$RUNNER_TEMP/formatted.tar" analysis_options.yaml $(cat "$RUNNER_TEMP/sources.txt")
+          flutter analyze 2>&1 | tail -n 30 | tee -a "$OUT/report-format.txt" || true
+          dart format --output=none --set-exit-if-changed $(cat "$RUNNER_TEMP/sources.txt") 2>&1 | tail -n 5 | tee -a "$OUT/report-format.txt" || true
+
       - name: Publish reports (dev aid)
         if: ${{ always() }}
         run: |
           bash .github/scripts/dev_reports.sh
           cd "$RUNNER_TEMP"
           [ -d "$GITHUB_WORKSPACE/build/screenshots" ] && tar -C "$GITHUB_WORKSPACE/build/screenshots" -cf shots.tar . || true
-          bash "$GITHUB_WORKSPACE/.github/scripts/dev_carry.sh" verify shots.tar "$GITHUB_WORKSPACE/lib/data/local_db/app_database.g.dart"
+          bash "$GITHUB_WORKSPACE/.github/scripts/dev_carry.sh" verify shots.tar formatted.tar
 
   build-android:
     name: Android release APK
@@ -165,7 +183,15 @@ jobs:
           profile: pixel_6
           disable-animations: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: bash .github/scripts/emulator_smoke.sh apk/app-release.apk smoke 2>&1 | tee "$OUT/report-smoke.txt"
+          script: bash .github/scripts/emulator_smoke.sh apk/app-release.apk smoke > "$OUT/report-smoke.txt" 2>&1; code=$?; cat "$OUT/report-smoke.txt"; exit $code
+
+      - name: Upload emulator screenshots and logcat
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-smoke
+          path: smoke/
+          if-no-files-found: warn
 
       - name: Publish reports (dev aid)
         if: ${{ always() }}

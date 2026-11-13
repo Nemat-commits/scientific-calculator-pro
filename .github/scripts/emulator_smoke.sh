@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Installs the release APK on the running emulator and drives the real app:
-# hardware-keyboard input, "=" commit, rotation, tab switch and a cold restart
-# (history must come back from SQLite). Screenshots and logcat go to $2.
+# hardware-keyboard input, "=" commit, a 16 326-digit factorial, rotation,
+# every tab and a cold restart (history must come back from SQLite).
+# Screenshots and logcat go to $2.
 #
 #   emulator_smoke.sh <apk> <output-dir>
 set -uo pipefail
@@ -30,6 +31,8 @@ adb shell input keyevent 66; sleep 3          # ENTER commits
 shot 03_committed
 adb shell "input text '+8'"; adb shell input keyevent 66; sleep 3   # continues from Ans -> 50
 shot 04_ans_plus_8
+adb shell "input text '5000!'"; adb shell input keyevent 66; sleep 5  # 4.2285779266 x 10^16325
+shot 04_factorial_5000
 
 adb shell settings put system user_rotation 1; sleep 5
 shot 05_landscape
@@ -52,10 +55,10 @@ tab 4; shot 08_history_after_restart
 adb logcat -d > "$OUT/logcat_full.txt" 2>/dev/null
 grep -E " (E|F) (flutter|AndroidRuntime|DEBUG|libc) *:|FATAL EXCEPTION|I flutter" "$OUT/logcat_full.txt" > "$OUT/logcat_app.txt" || true
 note "logcat: $(wc -l < "$OUT/logcat_full.txt") lines, $(wc -l < "$OUT/logcat_app.txt") app-relevant"
+grep -E "I flutter" "$OUT/logcat_app.txt" | sed 's/^.*I flutter *: */[app] /' | sort -u | head -20 | tee -a "$OUT/smoke.log"
 if grep -qE " E flutter|FATAL EXCEPTION| F libc| F DEBUG" "$OUT/logcat_full.txt"; then
   note "FAIL: errors in logcat"; grep -E " E flutter|FATAL EXCEPTION| F libc| F DEBUG" "$OUT/logcat_full.txt" | head -60 | tee -a "$OUT/smoke.log"; fail=1
 fi
 adb shell dumpsys package "$PKG" | grep -E "versionName|versionCode|targetSdk|minSdk" | tee -a "$OUT/smoke.log"
-adb shell run-as "$PKG" ls -la databases files app_flutter 2>&1 | tee -a "$OUT/smoke.log" || true
 note "result: $([ $fail = 0 ] && echo PASS || echo FAIL)"
 exit $fail

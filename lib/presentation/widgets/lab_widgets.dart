@@ -44,6 +44,8 @@ class ChoiceChips extends StatelessWidget {
               button: true,
               selected: active,
               label: labels[i],
+              onTap: () => onSelected(i),
+              excludeSemantics: true,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => onSelected(i),
@@ -89,6 +91,8 @@ class SmallButton extends StatelessWidget {
       button: true,
       enabled: onTap != null,
       label: label,
+      onTap: onTap,
+      excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -141,6 +145,8 @@ class LabField extends StatelessWidget {
       textField: true,
       label: label,
       value: value,
+      onTap: onTap,
+      excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -257,7 +263,7 @@ class MiniKeypad extends StatelessWidget {
             tone: KeyTone.equals,
             fontSize: 18,
             radius: 12,
-            semanticLabel: 'Confirm',
+            semanticLabel: switch (enterLabel) { '⏎' => 'Next field', 'C' => 'Clear', _ => enterLabel },
             onPressed: onEnter,
           ),
         ],

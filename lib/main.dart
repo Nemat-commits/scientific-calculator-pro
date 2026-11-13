@@ -53,6 +53,7 @@ Future<void> main() async {
   } on Object {
     evaluator = InlineEvaluator();
   }
+  debugPrint('evaluator: ${describeEvaluator(evaluator)}');
   try {
     await AppTypography.preload().timeout(const Duration(seconds: 3));
   } on Object {

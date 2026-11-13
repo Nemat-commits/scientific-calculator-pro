@@ -472,7 +472,7 @@ class _TableViewState extends ConsumerState<_TableView> {
   @override
   Widget build(BuildContext context) {
     final root = ref.watch(calculatorProvider.select((s) => s.rootSequence));
-    final expression = TreeToTokenLowerer.toText(root);
+    final expression = TreeToTokenLowerer.toDisplayText(root);
     final rows = _rows;
     return _WithKeypad(
       keypad: MiniKeypad(
@@ -582,7 +582,7 @@ class _StatsViewState extends State<_StatsView> {
   List<Widget> _results() {
     if (_data.isEmpty) {
       return <Widget>[
-        Text('Type a value and press ⏎ to add it.', style: AppTypography.ui(size: 12.5, color: AppColors.textFaint)),
+        Text('Type a value and press Add.', style: AppTypography.ui(size: 12.5, color: AppColors.textFaint)),
       ];
     }
     try {

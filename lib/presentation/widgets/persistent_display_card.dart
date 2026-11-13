@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../domain/compiler/tree_to_token_lowerer.dart';
 import '../../domain/editor/cursor_path.dart';
 import '../state/calculator_notifier.dart';
 import '../state/calculator_ui_state.dart';
@@ -59,10 +60,9 @@ class _PersistentDisplayCardState extends ConsumerState<PersistentDisplayCard> {
   }
 
   Future<void> _copy(CalculatorUiState state) async {
-    final notifier = ref.read(calculatorProvider.notifier);
     final text = state.inputPhase == InputPhase.committedResult && state.livePreviewPrimary.isNotEmpty
         ? state.livePreviewPrimary
-        : notifier.expressionText();
+        : TreeToTokenLowerer.toDisplayText(state.rootSequence);
     if (text.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: text));
     if (mounted) _flash('Copied');
@@ -113,25 +113,37 @@ class _PersistentDisplayCardState extends ConsumerState<PersistentDisplayCard> {
                   _StatusRow(state: state, notice: _notice, onCopy: () => _copy(state), onPaste: _paste),
                   SizedBox(height: compact ? 2 : 6),
                   Expanded(
-                    child: MathPrintCanvas(
-                      root: state.rootSequence,
-                      cursor: CursorPath.fromRecords(state.cursorPath),
-                      fontSize: expressionSize,
-                      showCaret: state.inputPhase == InputPhase.editing,
-                      onTapPosition: notifier.setCursor,
+                    // The 2D rendering is a painting; screen readers get the
+                    // expression as linear text.
+                    child: Semantics(
+                      container: true,
+                      label: 'Expression: ${state.rootSequence.isEmpty ? 'empty' : TreeToTokenLowerer.toDisplayText(state.rootSequence)}',
+                      child: MathPrintCanvas(
+                        root: state.rootSequence,
+                        cursor: CursorPath.fromRecords(state.cursorPath),
+                        fontSize: expressionSize,
+                        showCaret: state.inputPhase == InputPhase.editing,
+                        onTapPosition: notifier.setCursor,
+                      ),
                     ),
                   ),
                   SizedBox(
                     height: resultSize * 1.3,
                     child: failed
-                        ? Align(
-                            alignment: Alignment.centerRight,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                state.errorMessage ?? 'Error',
-                                maxLines: 1,
-                                style: AppTypography.ui(size: compact ? 15 : 18, weight: AppWeight.medium, color: AppColors.error),
+                        ? Semantics(
+                            container: true,
+                            liveRegion: true,
+                            label: 'Error: ${state.errorMessage ?? 'Error'}',
+                            excludeSemantics: true,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  state.errorMessage ?? 'Error',
+                                  maxLines: 1,
+                                  style: AppTypography.ui(size: compact ? 15 : 18, weight: AppWeight.medium, color: AppColors.error),
+                                ),
                               ),
                             ),
                           )
@@ -140,12 +152,18 @@ class _PersistentDisplayCardState extends ConsumerState<PersistentDisplayCard> {
                             onTap: secondary == null ? null : () => setState(() => _swapped = !_swapped),
                             child: primaryText.isEmpty
                                 ? const SizedBox.expand()
-                                : ResultText(
-                                    primaryText,
-                                    fontSize: committed ? resultSize : resultSize * 0.72,
-                                    color: committed ? AppColors.textPrimary : AppColors.textMuted,
-                                    weight: committed ? AppWeight.medium : AppWeight.regular,
-                                    prefix: '=',
+                                : Semantics(
+                                    container: true,
+                                    liveRegion: committed,
+                                    label: '${committed ? 'Result' : 'Preview'}: $primaryText',
+                                    excludeSemantics: true,
+                                    child: ResultText(
+                                      primaryText,
+                                      fontSize: committed ? resultSize : resultSize * 0.72,
+                                      color: committed ? AppColors.textPrimary : AppColors.textMuted,
+                                      weight: committed ? AppWeight.medium : AppWeight.regular,
+                                      prefix: '=',
+                                    ),
                                   ),
                           ),
                   ),
@@ -243,6 +261,8 @@ class StatusBadge extends StatelessWidget {
     return Semantics(
       button: true,
       label: semanticLabel == null ? label : '$semanticLabel: $label',
+      onTap: onTap,
+      excludeSemantics: true,
       child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: pill),
     );
   }

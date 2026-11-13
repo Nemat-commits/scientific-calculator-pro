@@ -227,6 +227,61 @@ void main() {
     });
   });
 
+  group('Display text', () {
+    const fraction = TemplateKey(TemplateKind.fraction);
+    const power = TemplateKey(TemplateKind.power);
+    const square = TemplateKey(TemplateKind.square);
+    const e = AtomKey('e', AtomKind.constant);
+    const factorial = AtomKey('!', AtomKind.unaryPostfix);
+    String pretty(List<CalcKey> typed) => TreeToTokenLowerer.toDisplayText(keys(typed).root);
+
+    test('drops the parentheses that only delimit template slots', () {
+      expect(pretty(<CalcKey>[fraction, digit('1'), down, digit('2')]), '1/2');
+      expect(pretty(<CalcKey>[fraction, digit('1'), down, digit('2'), right, op('+'), digit('3')]), '(1/2)+3');
+      expect(pretty(<CalcKey>[fraction, digit('1'), op('+'), digit('2'), down, digit('3')]), '(1+2)/3');
+      expect(pretty(<CalcKey>[fraction, fraction, digit('1'), down, digit('2'), right, down, digit('3')]), '(1/2)/3');
+      expect(pretty(<CalcKey>[digit('5'), square]), '5^2');
+      expect(pretty(<CalcKey>[digit('2'), power, digit('1'), digit('.'), digit('5')]), '2^1.5');
+      expect(pretty(<CalcKey>[e, power, fraction, digit('1'), down, digit('2')]), 'e^(1/2)');
+      expect(pretty(<CalcKey>[e, power, op('−'), fraction, digit('1'), down, digit('2')]), 'e^(−(1/2))');
+      expect(pretty(<CalcKey>[const TemplateKey(TemplateKind.squareRoot), fraction, digit('1'), down, digit('4')]), '√(1/4)');
+    });
+
+    test('keeps them where the text would read differently', () {
+      expect(pretty(<CalcKey>[digit('5'), square, right, digit('4')]), '5^(2)4');
+      expect(pretty(<CalcKey>[digit('5'), square, right, factorial]), '5^(2)!');
+      expect(pretty(<CalcKey>[digit('2'), power, digit('3'), right, power, digit('2')]), '2^(3)^2');
+      expect(pretty(<CalcKey>[digit('2'), power, digit('1'), digit('E'), digit('2')]), '2^(1E2)');
+      expect(pretty(<CalcKey>[digit('3'), fraction, digit('1'), down, digit('2')]), '3(1/2)');
+    });
+
+    test('parses back to the same value', () {
+      final typed = <List<CalcKey>>[
+        <CalcKey>[fraction, digit('1'), down, digit('2'), right, op('+'), digit('3')],
+        <CalcKey>[fraction, digit('1'), down, digit('2'), right, fraction, digit('1'), down, digit('3')],
+        <CalcKey>[fraction, fraction, digit('1'), down, digit('2'), right, down, digit('3')],
+        <CalcKey>[fraction, digit('1'), down, digit('2'), right, square],
+        <CalcKey>[digit('5'), square, right, digit('4')],
+        <CalcKey>[digit('5'), square, right, factorial],
+        <CalcKey>[digit('2'), power, digit('3'), power, digit('2')],
+        <CalcKey>[digit('2'), power, digit('3'), right, power, digit('2')],
+        <CalcKey>[e, power, op('−'), fraction, digit('1'), down, digit('2')],
+        <CalcKey>[digit('2'), power, const AtomKey('π', AtomKind.constant), right, op('×'), digit('3')],
+      ];
+      for (final sequence in typed) {
+        final root = keys(sequence).root;
+        final shown = TreeToTokenLowerer.toDisplayText(root);
+        expect(MathEngine.evaluateText(shown).primary, MathEngine.evaluateSequence(root).primary, reason: shown);
+      }
+    });
+
+    test('is what the engine reports for the history tape', () {
+      final root = keys(<CalcKey>[digit('5'), square, op('+'), fraction, digit('1'), down, digit('2')]).root;
+      expect(MathEngine.evaluateSequence(root).expression, '5^2+(1/2)');
+      expect(TreeToTokenLowerer.toText(root), '5^(2)+((1)/(2))', reason: 'the token stream itself is unchanged');
+    });
+  });
+
   group('Clipboard sanitizer', () {
     String linear(String raw) => TreeToTokenLowerer.toText(ClipboardSanitizer.toSequence(raw));
 
@@ -346,6 +401,13 @@ void main() {
         '-40',
       );
       expect(UnitDefinitions.categories, hasLength(12));
+    });
+
+    test('a conversion starts from the base unit of its category', () {
+      for (final category in UnitDefinitions.categories) {
+        final expected = category.id == 'temperature' ? '°C' : category.baseSymbol;
+        expect(category.defaultUnit.symbol, expected, reason: category.id);
+      }
     });
 
     test('value codec round-trips every kind of value', () {

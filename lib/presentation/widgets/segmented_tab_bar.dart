@@ -77,6 +77,8 @@ class SegmentedTabBar extends StatelessWidget {
                       button: true,
                       selected: i == selected,
                       label: labels[i],
+                      onTap: () => onSelected(i),
+                      excludeSemantics: true,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () => onSelected(i),

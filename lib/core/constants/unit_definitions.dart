@@ -34,6 +34,11 @@ final class UnitCategory {
   final List<UnitDef> units;
 
   UnitDef unit(String unitId) => units.firstWhere((u) => u.id == unitId);
+
+  /// The unit a conversion starts from: the base unit, except for
+  /// temperatures, where the everyday scale comes first.
+  UnitDef get defaultUnit =>
+      id == 'temperature' ? units.first : units.firstWhere((u) => u.symbol == baseSymbol, orElse: () => units.first);
 }
 
 /// The 12 unit categories.

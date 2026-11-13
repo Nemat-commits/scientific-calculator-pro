@@ -149,7 +149,11 @@ class ScientificTabView extends ConsumerWidget {
             ),
             key(
               _Face((c) => KeyLegend('×10', sup: 'x', color: c, size: 15), const AtomKey('E', AtomKind.digit), name: 'exponent'),
-              inv: _function('logb', label: 'log', arity: 2),
+              inv: _Face(
+                (c) => KeyLegend('log', sub: 'a', color: c),
+                const TemplateKey(TemplateKind.function, name: 'logb', arity: 2),
+                name: 'log to base a',
+              ),
             ),
             key(_text('x!', const AtomKey('!', AtomKind.unaryPostfix), name: 'factorial'), inv: _function('gamma', label: 'Γ')),
           ],

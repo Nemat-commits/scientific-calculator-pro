@@ -29,14 +29,14 @@ class KeyLegend extends StatelessWidget {
     InlineSpan shifted(String s, double dy) => WidgetSpan(
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
-          child: Transform.translate(offset: Offset(0, dy), child: Text(s, style: small)),
+          child: Transform.translate(offset: Offset(0, dy), child: Text(AppTypography.signs(s), style: small)),
         );
     return Text.rich(
       TextSpan(
         style: base,
         children: <InlineSpan>[
           if (lead != null) shifted(lead!, -size * 0.42),
-          TextSpan(text: text),
+          TextSpan(text: AppTypography.signs(text)),
           if (sup != null) shifted(sup!, -size * 0.42),
           if (sub != null) shifted(sub!, size * 0.18),
         ],

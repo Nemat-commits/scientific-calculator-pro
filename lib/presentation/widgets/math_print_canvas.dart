@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -105,7 +107,7 @@ class MathLayoutEngine {
   double _scaled(double f, double k) => math.max(f * k, _minFont);
 
   TextPainter _text(String text, double size, Color color, {AppWeight weight = AppWeight.regular}) {
-    final key = '$text|$size|${color.hashCode}|${weight.index}|${AppTypography.useGoogleFonts}';
+    final key = '$text|$size|${color.hashCode}|${weight.index}|${textScaler.hashCode}|${AppTypography.useGoogleFonts}';
     final cached = _painters[key];
     if (cached != null) return cached;
     if (_painters.length > 1500) _painters.clear();
@@ -614,6 +616,7 @@ class MathPrintCanvas extends StatefulWidget {
     this.showCaret = true,
     this.onTapPosition,
     this.alignment = Alignment.centerLeft,
+    this.fadeColor = AppColors.cardSurface,
   });
 
   final EditorSequence root;
@@ -627,13 +630,29 @@ class MathPrintCanvas extends StatefulWidget {
   final void Function(String sequenceId, int offset)? onTapPosition;
   final Alignment alignment;
 
+  /// Colour of the surface behind the expression; the edges of an expression
+  /// that scrolls out of view fade into it.
+  final Color fadeColor;
+
+  /// A wide expression first shrinks down to this share of [fontSize]; only
+  /// if it is still too wide does the line scroll.
+  static const double minWidthFit = 0.62;
+
+  /// A tall expression (stacked fractions) shrinks down to this share.
+  static const double minHeightFit = 0.5;
+
   @override
   State<MathPrintCanvas> createState() => _MathPrintCanvasState();
 }
 
-class _MathPrintCanvasState extends State<MathPrintCanvas> with SingleTickerProviderStateMixin {
-  late final AnimationController _blink =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1060));
+class _MathPrintCanvasState extends State<MathPrintCanvas> {
+  static const Duration _blinkHalfPeriod = Duration(milliseconds: 530);
+
+  /// Whether the caret is in the lit half of its blink cycle. A timer flips
+  /// it twice a second, so an idle calculator repaints twice a second rather
+  /// than on every frame.
+  final ValueNotifier<bool> _caretLit = ValueNotifier<bool>(true);
+  Timer? _blinkTimer;
   final ScrollController _scroll = ScrollController();
 
   MathLayout? _layout;
@@ -642,24 +661,34 @@ class _MathPrintCanvasState extends State<MathPrintCanvas> with SingleTickerProv
   @override
   void initState() {
     super.initState();
-    _blink.repeat();
+    _restartBlink();
     PaintingBinding.instance.systemFonts.addListener(_fontsChanged);
+  }
+
+  /// Shows the caret right away (it must not vanish while typing) and
+  /// starts a fresh blink cycle.
+  void _restartBlink() {
+    _blinkTimer?.cancel();
+    _blinkTimer = null;
+    _caretLit.value = true;
+    if (widget.showCaret && widget.cursor != null) {
+      _blinkTimer = Timer.periodic(_blinkHalfPeriod, (_) => _caretLit.value = !_caretLit.value);
+    }
   }
 
   @override
   void didUpdateWidget(MathPrintCanvas old) {
     super.didUpdateWidget(old);
-    if (old.cursor != widget.cursor || !identical(old.root, widget.root)) {
-      _blink
-        ..value = 0
-        ..repeat();
+    if (old.cursor != widget.cursor || old.showCaret != widget.showCaret || !identical(old.root, widget.root)) {
+      _restartBlink();
     }
   }
 
   @override
   void dispose() {
     PaintingBinding.instance.systemFonts.removeListener(_fontsChanged);
-    _blink.dispose();
+    _blinkTimer?.cancel();
+    _caretLit.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -669,13 +698,40 @@ class _MathPrintCanvasState extends State<MathPrintCanvas> with SingleTickerProv
     if (mounted) setState(() => _layoutKey = null);
   }
 
-  MathLayout _layoutFor(double fontSize, TextScaler scaler) {
+  /// Lays the expression out at the largest font size that fits the
+  /// viewport, within the limits of [MathPrintCanvas.minWidthFit] and
+  /// [MathPrintCanvas.minHeightFit].
+  MathLayout _fitted(BoxConstraints constraints, TextScaler scaler) {
     final active = widget.cursor?.sequenceId;
-    final key = (widget.root, fontSize, active, scaler);
+    final maxWidth = constraints.maxWidth, maxHeight = constraints.maxHeight;
+    final key = (widget.root, widget.fontSize, active, scaler, maxWidth, maxHeight);
     final cached = _layout;
     if (cached != null && _layoutKey == key) return cached;
+
+    MathLayout at(double size) =>
+        MathLayoutEngine(fontSize: size, activeSlotId: active, textScaler: scaler).layout(widget.root);
+    final widthFloor = widget.fontSize * MathPrintCanvas.minWidthFit;
+    final heightFloor = widget.fontSize * MathPrintCanvas.minHeightFit;
+    var size = widget.fontSize;
+    var layout = at(size);
+    // Glyph metrics are not perfectly linear in the font size, so the first
+    // estimate may need a correction.
+    for (var pass = 0; pass < 3; pass++) {
+      var target = size;
+      if (maxHeight.isFinite && maxHeight > 0 && layout.size.height > maxHeight) {
+        target = math.min(target, math.max(heightFloor, size * maxHeight / layout.size.height));
+      }
+      if (maxWidth.isFinite && maxWidth > 0 && layout.size.width > maxWidth) {
+        target = math.min(target, math.max(widthFloor, size * maxWidth / layout.size.width));
+      }
+      // Half-pixel steps keep the glyph cache small while typing.
+      target = (target * 2).floorToDouble() / 2;
+      if (target >= size) break;
+      size = target;
+      layout = at(size);
+    }
     _layoutKey = key;
-    return _layout = MathLayoutEngine(fontSize: fontSize, activeSlotId: active, textScaler: scaler).layout(widget.root);
+    return _layout = layout;
   }
 
   /// Keeps the caret inside the viewport after the content changed.
@@ -707,40 +763,39 @@ class _MathPrintCanvasState extends State<MathPrintCanvas> with SingleTickerProv
     final scaler = MediaQuery.textScalerOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxHeight = constraints.maxHeight.isFinite ? constraints.maxHeight : double.infinity;
-        var layout = _layoutFor(widget.fontSize, scaler);
-        if (layout.size.height > maxHeight && maxHeight > 0) {
-          // Too tall for the display: shrink the whole expression.
-          final factor = math.max(0.5, maxHeight / layout.size.height);
-          layout = _layoutFor((widget.fontSize * factor * 100).floorToDouble() / 100, scaler);
-        }
+        final layout = _fitted(constraints, scaler);
         final viewport = constraints.maxWidth.isFinite ? constraints.maxWidth : layout.size.width;
-        final height = maxHeight.isFinite ? maxHeight : layout.size.height;
+        final height = constraints.maxHeight.isFinite ? constraints.maxHeight : layout.size.height;
         final width = math.max(layout.size.width, viewport);
         // Free space is distributed according to the alignment.
         final dx = (width - layout.size.width) * (widget.alignment.x + 1) / 2;
         final dy = math.max(0.0, (height - layout.size.height) * (widget.alignment.y + 1) / 2);
         final origin = Offset(dx, dy);
         _revealCaret(layout, viewport);
-        return SingleChildScrollView(
-          controller: _scroll,
-          scrollDirection: Axis.horizontal,
-          physics: const ClampingScrollPhysics(),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapUp: widget.onTapPosition == null
-                ? null
-                : (details) {
-                    final hit = layout.hitTest(details.localPosition - origin);
-                    if (hit != null) widget.onTapPosition!(hit.$1, hit.$2);
-                  },
-            child: RepaintBoundary(
-              child: CustomPaint(
-                size: Size(width, height),
-                painter: _ExpressionPainter(layout, origin),
-                foregroundPainter: widget.showCaret && widget.cursor != null
-                    ? _CaretPainter(layout, origin, widget.cursor!, _blink)
-                    : null,
+        return CustomPaint(
+          // Drawn above the line: fades the side on which the expression
+          // continues outside the viewport.
+          foregroundPainter: _EdgeFadePainter(_scroll, widget.fadeColor),
+          child: SingleChildScrollView(
+            controller: _scroll,
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: widget.onTapPosition == null
+                  ? null
+                  : (details) {
+                      final hit = layout.hitTest(details.localPosition - origin);
+                      if (hit != null) widget.onTapPosition!(hit.$1, hit.$2);
+                    },
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  size: Size(width, height),
+                  painter: _ExpressionPainter(layout, origin),
+                  foregroundPainter: widget.showCaret && widget.cursor != null
+                      ? _CaretPainter(layout, origin, widget.cursor!, _caretLit)
+                      : null,
+                ),
               ),
             ),
           ),
@@ -748,6 +803,38 @@ class _MathPrintCanvasState extends State<MathPrintCanvas> with SingleTickerProv
       },
     );
   }
+}
+
+/// Soft edges for a horizontally scrolled expression.
+class _EdgeFadePainter extends CustomPainter {
+  _EdgeFadePainter(this.scroll, this.color) : super(repaint: scroll);
+
+  final ScrollController scroll;
+  final Color color;
+
+  static const double _extent = 22;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!scroll.hasClients) return;
+    final position = scroll.position;
+    if (!position.hasContentDimensions || !position.hasPixels) return;
+    final clear = color.withValues(alpha: 0);
+    final extent = math.min(_extent, size.width / 3);
+    if (position.pixels > position.minScrollExtent + 0.5) {
+      final rect = Rect.fromLTWH(0, 0, extent, size.height);
+      canvas.drawRect(rect, Paint()..shader = LinearGradient(colors: <Color>[color, clear]).createShader(rect));
+    }
+    if (position.pixels < position.maxScrollExtent - 0.5) {
+      final rect = Rect.fromLTWH(size.width - extent, 0, extent, size.height);
+      canvas.drawRect(rect, Paint()..shader = LinearGradient(colors: <Color>[clear, color]).createShader(rect));
+    }
+  }
+
+  // A new painter means the expression was laid out again, which can change
+  // the scroll extent without moving the scroll offset.
+  @override
+  bool shouldRepaint(_EdgeFadePainter old) => true;
 }
 
 class _ExpressionPainter extends CustomPainter {
@@ -770,16 +857,16 @@ class _ExpressionPainter extends CustomPainter {
 }
 
 class _CaretPainter extends CustomPainter {
-  _CaretPainter(this.layout, this.origin, this.cursor, this.blink) : super(repaint: blink);
+  _CaretPainter(this.layout, this.origin, this.cursor, this.lit) : super(repaint: lit);
 
   final MathLayout layout;
   final Offset origin;
   final CursorPath cursor;
-  final Animation<double> blink;
+  final ValueListenable<bool> lit;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (blink.value >= 0.5) return;
+    if (!lit.value) return;
     final slot = layout.slot(cursor.sequenceId);
     if (slot == null) return;
     final index = cursor.offset < slot.caretX.length ? cursor.offset : slot.caretX.length - 1;

@@ -62,7 +62,7 @@ abstract final class MathEngine {
       value: value,
       primary: special ?? format(value, context),
       secondary: special == null ? NumberFormatter.formatSecondary(value) : null,
-      expression: TreeToTokenLowerer.textOf(tokens),
+      expression: TreeToTokenLowerer.toDisplayText(root),
     );
   }
 

@@ -17,3 +17,6 @@ linter:
     directives_ordering: true
     unawaited_futures: true
     avoid_print: true
+
+formatter:
+  page_width: 120
