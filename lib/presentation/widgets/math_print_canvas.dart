@@ -110,7 +110,7 @@ class MathLayoutEngine {
     if (cached != null) return cached;
     if (_painters.length > 1500) _painters.clear();
     final painter = TextPainter(
-      text: TextSpan(text: text, style: AppTypography.mono(size: size, color: color, weight: weight)),
+      text: TextSpan(text: AppTypography.signs(text), style: AppTypography.mono(size: size, color: color, weight: weight)),
       textDirection: TextDirection.ltr,
       textScaler: textScaler,
       maxLines: 1,
@@ -399,6 +399,8 @@ class _SeqBox extends _Box {
   @override
   void paint(Canvas canvas) {
     if (items.isEmpty) {
+      // The empty expression line shows just the caret.
+      if (depth == 0) return;
       final rect = Rect.fromLTRB(x + f * 0.06, y - f * 0.70, x + w - f * 0.06, y + f * 0.04);
       final radius = Radius.circular(f * 0.10);
       if (active) {

@@ -66,7 +66,7 @@ void main() {
     typeQuadraticFormula(n);
     await capture(tester, '02_portrait_standard_editing');
 
-    await n.evaluate();
+    await commit(tester, container);
     await capture(tester, '03_portrait_standard_result');
 
     n.press(const ClearKey());
@@ -104,8 +104,7 @@ void main() {
     n.press(const ClearKey());
     for (final expression in <String>['1/3+1/6', '5000!', 'sin(30)+cos(60)', '2^64']) {
       n.pasteText(expression);
-      await n.evaluate();
-      await settle(tester);
+      await commit(tester, container);
       n.press(const ClearKey());
     }
     n.setActiveTab(4);
@@ -113,7 +112,7 @@ void main() {
 
     n.setActiveTab(0);
     n.pasteText('1/0');
-    await n.evaluate();
+    await commit(tester, container);
     await capture(tester, '10_portrait_error');
   }, skip: !enabled);
 

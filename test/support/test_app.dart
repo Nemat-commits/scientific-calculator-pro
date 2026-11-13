@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -8,6 +9,7 @@ import 'package:modern_scientific_calculator/core/theme/app_typography.dart';
 import 'package:modern_scientific_calculator/main.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_notifier.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_ui_state.dart';
+import 'package:modern_scientific_calculator/presentation/widgets/calc_key_button.dart';
 
 /// Registers the bundled font files under their plain family names so widget
 /// tests lay text out with the real metrics (and never touch google_fonts).
@@ -62,6 +64,19 @@ Future<void> settle(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 60));
   }
 }
+
+/// Presses "=" and waits for the result. (Inside `testWidgets` time only
+/// advances with `pump`, so the evaluation future must not be awaited.)
+Future<void> commit(WidgetTester tester, ProviderContainer container) async {
+  unawaited(container.read(calculatorProvider.notifier).evaluate());
+  await settle(tester);
+}
+
+/// A key inside the tab view of type [tab], by its legend or semantic label.
+Finder keyIn(Type tab, String name) => find.descendant(
+      of: find.byType(tab),
+      matching: find.byWidgetPredicate((w) => w is CalcKeyButton && (w.label == name || w.semanticLabel == name)),
+    );
 
 /// The current calculator state.
 CalculatorUiState stateOf(ProviderContainer container) => container.read(calculatorProvider);

@@ -207,9 +207,10 @@ void main() {
   test('typing i switches to complex mode', () async {
     type(<CalcKey>[digit('2'), const AtomKey('i', AtomKind.constant)]);
     expect(state().isComplexEnabled, isTrue);
+    // The power binds tighter than the implied product: 2·(i²) = −2.
     type(<CalcKey>[const TemplateKey(TemplateKind.square)]);
     await calculator.evaluate();
-    expect(state().livePreviewPrimary, '-4 + 0i');
+    expect(state().livePreviewPrimary, '-2 + 0i');
   });
 
   test('INV and HYP release after the key they modify', () {

@@ -7,20 +7,14 @@ import 'package:modern_scientific_calculator/presentation/tabs/advanced_lab_tab_
 import 'package:modern_scientific_calculator/presentation/tabs/scientific_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/standard_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/unit_converter_tab_view.dart';
-import 'package:modern_scientific_calculator/presentation/widgets/calc_key_button.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/persistent_display_card.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/segmented_tab_bar.dart';
 
 import '../support/test_app.dart';
 
-/// A key of the standard keypad, by its legend.
-Finder standardKey(String label) =>
-    find.descendant(of: find.byType(StandardTabView), matching: find.widgetWithText(CalcKeyButton, label));
+Finder standardKey(String name) => keyIn(StandardTabView, name);
 
-Finder scientificKey(String semanticLabel) => find.descendant(
-      of: find.byType(ScientificTabView),
-      matching: find.byWidgetPredicate((w) => w is CalcKeyButton && (w.semanticLabel == semanticLabel || w.label == semanticLabel)),
-    );
+Finder scientificKey(String name) => keyIn(ScientificTabView, name);
 
 Future<void> tapAll(WidgetTester tester, List<Finder> keys) async {
   for (final key in keys) {
@@ -99,10 +93,15 @@ void main() {
     final container = await pumpCalculator(tester);
     expect(stateOf(container).activeTabIndex, 0);
 
-    // A hard horizontal fling across the keypad does nothing.
-    await tester.fling(find.byType(StandardTabView), const Offset(-300, 0), 2000);
+    // A hard horizontal fling across the keypad does nothing - whether it
+    // starts on a key or in the gap between keys.
+    await tester.fling(standardKey('6'), const Offset(-300, 0), 2000);
     await settle(tester);
     expect(stateOf(container).activeTabIndex, 0);
+    await tester.fling(find.byType(StandardTabView), const Offset(-300, 0), 2000, warnIfMissed: false);
+    await settle(tester);
+    expect(stateOf(container).activeTabIndex, 0);
+    expect(stateOf(container).rootSequence.isEmpty, isTrue, reason: 'a fling is not a key press');
 
     // The same fling on the display card moves to the next tab …
     await tester.fling(find.byType(PersistentDisplayCard), const Offset(-200, 0), 2000);
@@ -147,9 +146,10 @@ void main() {
         final notifier = container.read(calculatorProvider.notifier);
         final landscape = entry.value.width >= CalculatorShellScreen.landscapeBreakpoint;
 
-        // Portrait shows one tab at a time; landscape pins the standard keypad.
-        expect(find.byType(StandardTabView).hitTestable(), findsOneWidget);
-        expect(find.byType(ScientificTabView).hitTestable(), landscape ? findsOneWidget : findsNothing);
+        // Portrait shows one tab at a time; landscape pins the standard keypad
+        // next to the specialised workspace.
+        expect(standardKey('7').hitTestable(), findsOneWidget);
+        expect(scientificKey('sin').hitTestable(), landscape ? findsOneWidget : findsNothing);
 
         notifier.pasteText('∫(0,1,√(x^2+1/(1+x)))+sin(30)×2^10');
         for (var tab = 0; tab < 5; tab++) {
@@ -166,10 +166,10 @@ void main() {
         }
         notifier.setActiveTab(3);
         await settle(tester);
-        expect(find.byType(UnitConverterTabView).hitTestable(), findsOneWidget);
-        await notifier.evaluate();
-        await settle(tester);
+        expect(find.byType(UnitConverterTabView), findsOneWidget);
+        await commit(tester, container);
         expect(stateOf(container).inputPhase, InputPhase.committedResult);
+        expect(stateOf(container).livePreviewPrimary, '513.0095131798541');
         expect(tester.takeException(), isNull);
       });
     }
@@ -179,9 +179,7 @@ void main() {
     final container = await pumpCalculator(tester);
     container.read(calculatorProvider.notifier).setActiveTab(2);
     await settle(tester);
-    Finder labKey(String label) => find
-        .descendant(of: find.byType(AdvancedLabTabView), matching: find.widgetWithText(CalcKeyButton, label))
-        .hitTestable();
+    Finder labKey(String label) => keyIn(AdvancedLabTabView, label).hitTestable();
     // 2x² + 5x − 3 = 0
     await tapAll(tester, <Finder>[labKey('2'), labKey('⏎'), labKey('5'), labKey('⏎'), labKey('−'), labKey('3')]);
     await tester.tap(find.text('Solve').hitTestable().first);

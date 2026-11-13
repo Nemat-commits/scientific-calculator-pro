@@ -39,7 +39,7 @@ class ResultText extends StatelessWidget {
       if (match.start > last) out.add((grouped.substring(last, match.start), false));
       out
         ..add(('×10', false))
-        ..add(((match.group(1) ?? match.group(2)!).replaceAll('-', '−'), true));
+        ..add((match.group(1) ?? match.group(2)!, true));
       last = match.end;
     }
     if (last < grouped.length) out.add((grouped.substring(last), false));
@@ -60,11 +60,11 @@ class ResultText extends StatelessWidget {
             baseline: TextBaseline.alphabetic,
             child: Transform.translate(
               offset: Offset(0, -fontSize * 0.42),
-              child: Text(text, style: small),
+              child: Text(AppTypography.signs(text), style: small),
             ),
           )
         else
-          TextSpan(text: text.replaceAll('-', '−')),
+          TextSpan(text: AppTypography.signs(text)),
     ];
     return FittedBox(
       fit: BoxFit.scaleDown,

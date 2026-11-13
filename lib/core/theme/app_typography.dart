@@ -50,6 +50,12 @@ abstract final class AppTypography {
     ]);
   }
 
+  /// Prepares numeric text for painting. JetBrains Mono draws the minus sign
+  /// (U+2212) exactly as narrow as the hyphen, which looks lost next to `+`
+  /// and `×`; the en dash has the same height and stroke at operator width.
+  /// Display only - copied and stored text keeps the real characters.
+  static String signs(String text) => text.replaceAll('−', '–').replaceAll('-', '–');
+
   /// JetBrains Mono with tabular figures.
   static TextStyle mono({
     required double size,

@@ -132,7 +132,7 @@ class _CalcKeyButtonState extends ConsumerState<CalcKeyButton> {
     final foreground = CalcKeyButton.foregroundOf(widget.tone);
     final legend = widget.child ??
         Text(
-          widget.label!,
+          AppTypography.signs(widget.label!),
           maxLines: 1,
           softWrap: false,
           textAlign: TextAlign.center,
