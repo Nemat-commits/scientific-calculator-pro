@@ -35,7 +35,7 @@ keystore.properties
 .env
 .env.*
 
-# Heavy build artefacts live in Google Drive, not in git (see README)
+# Build artefacts are not kept in git (see README, "Download")
 *.apk
 *.aab
 *.ipa
