@@ -14,6 +14,11 @@
 set -euo pipefail
 
 if [ -z "${KEYSTORE_BASE64:-}" ]; then
+  # Pin where the Android tools keep the debug keystore. On a fresh machine
+  # they create it in ~/.android during the first Gradle run and in
+  # ~/.config/.android during the next, which gave the per-ABI APKs and the
+  # universal APK of one run two different signers.
+  if [ -n "${GITHUB_ENV:-}" ]; then echo "ANDROID_USER_HOME=$HOME/.android" >> "$GITHUB_ENV"; fi
   echo "::notice title=APK signing::No release keystore is configured. The APKs are signed with a throw-away debug key: they install and run, but a later build cannot update them in place."
   exit 0
 fi

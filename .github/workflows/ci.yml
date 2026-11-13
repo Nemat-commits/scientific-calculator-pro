@@ -139,17 +139,8 @@ jobs:
       # every device and on the x86_64 emulator of the smoke test.
       - name: Build release APKs
         run: |
-          touch "$RUNNER_TEMP/marker"                                                    # TEMP
-          diag() {                                                                       # TEMP (whole function)
-            echo "--- keystores after the $1 ($(date -u +%H:%M:%S))"
-            find "$HOME" /tmp "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -name '*.keystore' -newer "$RUNNER_TEMP/marker" -exec ls -la --time-style=full-iso {} \; 2>/dev/null || true
-            ls -la --time-style=full-iso "$HOME/.android" 2>&1 | head -n 20 || true
-          }
           flutter build apk --release --split-per-abi 2>&1 | tee "$OUT/report-apk.txt"
-          diag "split build" 2>&1 | tee "$OUT/report-debugkey.txt"                        # TEMP
           flutter build apk --release 2>&1 | tee -a "$OUT/report-apk.txt"
-          diag "universal build" 2>&1 | tee -a "$OUT/report-debugkey.txt"                 # TEMP
-          (env | grep -E '^(ANDROID|HOME=|GRADLE|JAVA_HOME)' | sort || true) | tee -a "$OUT/report-debugkey.txt"   # TEMP
         shell: bash -eo pipefail {0}
 
       # Fails when an APK is not properly signed; the run summary lists what
@@ -160,15 +151,16 @@ jobs:
           {
             echo "### APKs"
             echo
-            echo "| File | Bytes | SHA-256 | Signer |"
+            echo "| File | Bytes | SHA-256 | Signer (certificate SHA-256) |"
             echo "| --- | ---: | --- | --- |"
           } >> "$GITHUB_STEP_SUMMARY"
           for apk in build/app/outputs/flutter-apk/*.apk; do
             echo "== $apk"
             certs="$("$apksigner" verify --min-sdk-version 24 --print-certs "$apk")"
             echo "$certs"
-            signer="$(echo "$certs" | sed -n 's/^Signer #1 certificate DN: //p')"
-            echo "| $(basename "$apk") | $(stat -c %s "$apk") | \`$(sha256sum "$apk" | cut -d' ' -f1)\` | $signer |" >> "$GITHUB_STEP_SUMMARY"
+            signer="$(echo "$certs" | sed -n 's/^.*certificate DN: //p' | head -n 1)"
+            digest="$(echo "$certs" | sed -n 's/^.*certificate SHA-256 digest: //p' | head -n 1)"
+            echo "| $(basename "$apk") | $(stat -c %s "$apk") | \`$(sha256sum "$apk" | cut -d' ' -f1)\` | $signer (\`${digest:0:16}…\`) |" >> "$GITHUB_STEP_SUMMARY"
           done 2>&1 | tee "$OUT/report-sign.txt"
           sha256sum build/app/outputs/flutter-apk/*.apk | tee -a "$OUT/report-apk.txt"
         shell: bash -eo pipefail {0}
@@ -184,20 +176,6 @@ jobs:
       - name: Carry APKs (dev aid)
         if: ${{ always() }}
         run: bash .github/scripts/dev_carry.sh apk build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-
-      - name: TEMP - the release keystore path, end to end
-        if: ${{ always() }}
-        run: |
-          {
-            keytool -genkeypair -keystore "$RUNNER_TEMP/test.jks" -storepass 'p\ss w0rd=1' -keypass 'p\ss w0rd=1' -alias calc -keyalg RSA -keysize 2048 -validity 100 -dname "CN=Keystore Path Test, O=CI"
-            KEYSTORE_BASE64="$(base64 -w0 "$RUNNER_TEMP/test.jks")" KEYSTORE_PASSWORD='p\ss w0rd=1' KEY_ALIAS=calc KEY_PASSWORD='' bash .github/scripts/release_keystore.sh
-            sed 's/Password=.*/Password=<hidden>/' android/key.properties
-            flutter build apk --release --target-platform android-arm64 2>&1 | tail -n 60
-            apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)apksigner"
-            "$apksigner" verify --min-sdk-version 24 --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
-            git status --short
-          } 2>&1 | tee "$OUT/report-keystore.txt"
-        shell: bash -eo pipefail {0}
 
       - name: Publish reports (dev aid)
         if: ${{ always() }}
