@@ -6,7 +6,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../domain/compiler/tree_to_token_lowerer.dart';
 import '../../domain/evaluator/algebra_solver_engine.dart';
-import '../../domain/evaluator/decimal_math.dart';
 import '../../domain/evaluator/number_formatter.dart';
 import '../../domain/math_engine.dart';
 import '../../domain/models/calc_error.dart';

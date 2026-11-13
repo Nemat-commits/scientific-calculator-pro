@@ -6,8 +6,8 @@ on:
   pull_request:
 
 permissions:
-  contents: read
-  checks: write
+  contents: write   # TEMPORARY (dev_carry.sh creates unreferenced blobs); back to `read` when finished
+  checks: write     # TEMPORARY (dev_reports.sh)
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -15,14 +15,13 @@ concurrency:
 
 env:
   FLUTTER_VERSION: '3.50.0'
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   verify:
     name: Analyze & test
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,11 +38,11 @@ jobs:
         run: flutter pub get 2>&1 | tee "$OUT/report-pubget.txt"
         shell: bash -eo pipefail {0}
 
-      - name: Generate Drift code
+      - name: Generated Drift code is up to date
         if: ${{ !cancelled() }}
         run: |
           dart run build_runner build 2>&1 | tee "$OUT/report-buildrunner.txt"
-          cp lib/data/local_db/app_database.g.dart "$OUT/report-app-database-g.txt"
+          git diff --stat --exit-code -- lib/data/local_db/app_database.g.dart 2>&1 | tee -a "$OUT/report-buildrunner.txt"
         shell: bash -eo pipefail {0}
 
       - name: Static analysis
@@ -66,7 +65,7 @@ jobs:
         run: dart test test/domain --reporter expanded 2>&1 | tee "$OUT/report-domain.txt"
         shell: bash -eo pipefail {0}
 
-      - name: Flutter test-suite
+      - name: Gate 3 - Flutter test-suite (notifier, isolate cancellation, widgets)
         if: ${{ !cancelled() }}
         run: flutter test --reporter expanded 2>&1 | tee "$OUT/report-flutter-test.txt"
         shell: bash -eo pipefail {0}
@@ -76,31 +75,96 @@ jobs:
         run: CALC_SCREENSHOTS=1 flutter test test/screenshots --reporter expanded 2>&1 | tee "$OUT/report-screenshots.txt"
         shell: bash -eo pipefail {0}
 
-      # --- development aid: mirrors the step logs into check runs -----------
-      - name: Publish reports
+      # --- temporary development aids ---------------------------------------
+      - name: Publish reports (dev aid)
         if: ${{ always() }}
-        shell: bash
         run: |
+          bash .github/scripts/dev_reports.sh
           cd "$RUNNER_TEMP"
-          for f in "$OUT"/report-*.txt; do
-            [ -f "$f" ] || continue
-            name="$(basename "$f" .txt)"
-            tail -c 60000 "$f" > chunk.txt
-            jq -n --arg name "$name" --arg sha "$GITHUB_SHA" --arg summary "run=$GITHUB_RUN_ID bytes=$(wc -c < "$f")" --rawfile text chunk.txt \
-              '{name:$name, head_sha:$sha, status:"completed", conclusion:"neutral", output:{title:$name, summary:$summary, text:$text}}' > payload.json
-            gh api "repos/$GITHUB_REPOSITORY/check-runs" --input payload.json --jq '.id' || true
-          done
-          # screenshots: PNG -> base64 chunks of 60 kB
-          if ls "$GITHUB_WORKSPACE"/build/screenshots/*.png >/dev/null 2>&1; then
-            tar -C "$GITHUB_WORKSPACE/build/screenshots" -cf shots.tar .
-            base64 -w0 shots.tar > shots.b64
-            split -b 60000 -d -a 3 shots.b64 shot_
-            total=$(ls shot_* | wc -l); i=0
-            for f in shot_*; do
-              jq -n --arg name "shots-$(printf '%03d' $i)" --arg sha "$GITHUB_SHA" --arg summary "chunk $i of $total sha256=$(sha256sum shots.tar | cut -d' ' -f1)" --rawfile text "$f" \
-                '{name:$name, head_sha:$sha, status:"completed", conclusion:"neutral", output:{title:$name, summary:$summary, text:$text}}' > payload.json
-              gh api "repos/$GITHUB_REPOSITORY/check-runs" --input payload.json --jq '.id' > /dev/null || true
-              i=$((i+1))
-            done
-            echo "published $total screenshot chunk(s)"
-          fi
+          [ -d "$GITHUB_WORKSPACE/build/screenshots" ] && tar -C "$GITHUB_WORKSPACE/build/screenshots" -cf shots.tar . || true
+          bash "$GITHUB_WORKSPACE/.github/scripts/dev_carry.sh" verify shots.tar "$GITHUB_WORKSPACE/lib/data/local_db/app_database.g.dart"
+
+  build-android:
+    name: Android release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Prepare report directory
+        run: mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: |
+          flutter build apk --release 2>&1 | tee "$OUT/report-apk.txt"
+          ls -l build/app/outputs/flutter-apk/ | tee -a "$OUT/report-apk.txt"
+          sha256sum build/app/outputs/flutter-apk/*.apk | tee -a "$OUT/report-apk.txt"
+        shell: bash -eo pipefail {0}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: scientific-calculator-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Publish reports (dev aid)
+        if: ${{ always() }}
+        run: |
+          bash .github/scripts/dev_reports.sh
+          bash .github/scripts/dev_carry.sh apk build/app/outputs/flutter-apk/app-release.apk
+
+  emulator-smoke:
+    name: Emulator smoke test
+    needs: build-android
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: scientific-calculator-apk
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Prepare report directory
+        run: mkdir -p "$RUNNER_TEMP/out" && echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+
+      - name: Run the app on an Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: bash .github/scripts/emulator_smoke.sh apk/app-release.apk smoke 2>&1 | tee "$OUT/report-smoke.txt"
+
+      - name: Publish reports (dev aid)
+        if: ${{ always() }}
+        run: |
+          bash .github/scripts/dev_reports.sh
+          tar -cf "$RUNNER_TEMP/smoke.tar" smoke || true
+          bash .github/scripts/dev_carry.sh smoke "$RUNNER_TEMP/smoke.tar"

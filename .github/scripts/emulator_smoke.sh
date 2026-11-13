@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Installs the release APK on the running emulator and drives the real app:
+# hardware-keyboard input, "=" commit, rotation, tab switch and a cold restart
+# (history must come back from SQLite). Screenshots and logcat go to $2.
+#
+#   emulator_smoke.sh <apk> <output-dir>
+set -uo pipefail
+APK="$1"; OUT="${2:-smoke}"; PKG=com.scientific.calculator.modern
+mkdir -p "$OUT"
+fail=0
+note() { echo "[smoke] $*" | tee -a "$OUT/smoke.log"; }
+shot() { adb exec-out screencap -p > "$OUT/$1.png"; note "screenshot $1 ($(wc -c < "$OUT/$1.png") bytes)"; }
+alive() { adb shell pidof "$PKG" | tr -d '\r'; }
+
+adb install -r "$APK" 2>&1 | tee -a "$OUT/smoke.log" || { note "install failed"; exit 1; }
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 0
+adb logcat -c
+adb shell am start -W -n "$PKG/.MainActivity" 2>&1 | tee -a "$OUT/smoke.log"
+sleep 12
+size="$(adb shell wm size | tr -d '\r' | sed -n 's/.*: \([0-9]*\)x\([0-9]*\).*/\1 \2/p' | tail -1)"
+W="${size% *}"; H="${size#* }"
+note "display ${W}x${H}, density $(adb shell wm density | tr -d '\r' | tail -1)"
+[ -n "$(alive)" ] || { note "FAIL: process is not running after launch"; fail=1; }
+shot 01_launch
+
+adb shell "input text '7*6'"; sleep 3
+shot 02_typed
+adb shell input keyevent 66; sleep 3          # ENTER commits
+shot 03_committed
+adb shell "input text '+8'"; adb shell input keyevent 66; sleep 3
+shot 04_ans_plus_8
+
+adb shell settings put system user_rotation 1; sleep 5
+shot 05_landscape
+adb shell settings put system user_rotation 0; sleep 5
+
+# History tab: fifth segment of the tab bar (display card = top 35 %, bar = next 7 %).
+adb shell input tap $((W * 90 / 100)) $((H * 395 / 1000)); sleep 3
+shot 06_history_tab
+
+adb shell am force-stop "$PKG"; sleep 2
+adb shell am start -W -n "$PKG/.MainActivity" >> "$OUT/smoke.log" 2>&1
+sleep 8
+shot 07_after_restart
+adb shell input tap $((W * 90 / 100)) $((H * 395 / 1000)); sleep 3
+shot 08_history_after_restart
+[ -n "$(alive)" ] || { note "FAIL: process is not running after restart"; fail=1; }
+
+adb logcat -d > "$OUT/logcat_full.txt" 2>/dev/null
+grep -E " (E|F) (flutter|AndroidRuntime|DEBUG|libc) *:|FATAL EXCEPTION|I flutter" "$OUT/logcat_full.txt" > "$OUT/logcat_app.txt" || true
+note "logcat: $(wc -l < "$OUT/logcat_full.txt") lines, $(wc -l < "$OUT/logcat_app.txt") app-relevant"
+if grep -qE " E flutter|FATAL EXCEPTION| F libc| F DEBUG" "$OUT/logcat_full.txt"; then
+  note "FAIL: errors in logcat"; grep -E " E flutter|FATAL EXCEPTION| F libc| F DEBUG" "$OUT/logcat_full.txt" | head -60 | tee -a "$OUT/smoke.log"; fail=1
+fi
+adb shell dumpsys package "$PKG" | grep -E "versionName|versionCode|targetSdk|minSdk" | tee -a "$OUT/smoke.log"
+adb shell run-as "$PKG" ls -la databases files app_flutter 2>&1 | tee -a "$OUT/smoke.log" || true
+note "result: $([ $fail = 0 ] && echo PASS || echo FAIL)"
+exit $fail

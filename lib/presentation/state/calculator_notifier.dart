@@ -16,7 +16,6 @@ import '../../domain/evaluator/ast_evaluator.dart';
 import '../../domain/models/calc_value.dart';
 import '../../domain/models/calc_value_codec.dart';
 import '../../domain/models/editor_node.dart';
-import '../../domain/models/math_context.dart';
 import '../isolate/evaluation_protocol.dart';
 import 'calculator_ui_state.dart';
 
