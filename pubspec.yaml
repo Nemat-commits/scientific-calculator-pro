@@ -1,7 +1,7 @@
 name: modern_scientific_calculator
 description: Production 120Hz Multi-Tabbed Scientific Calculator with 2D MathPrint Engine.
 publish_to: 'none'
-version: 3.2.0+3
+version: 3.2.1+4
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

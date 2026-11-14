@@ -83,6 +83,10 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
   /// changing one of several values takes one key.
   Map<String, String> get calcEntries => state.substitution == null ? const <String, String>{} : _calcEntries;
 
+  /// The value `CALC` has on display, encoded; null while it shows none (no
+  /// result of `CALC` is on display, or its values failed).
+  String? get calcResult => state.substitution == null ? null : _substituted;
+
   @override
   CalculatorUiState build() {
     _repository = ref.read(repositoryProvider);
@@ -224,6 +228,13 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
 
   // -------------------------------------------------------------- evaluation
 
+  /// Works out the preview of the expression as it stands now.
+  ///
+  /// What `CALC` had on display goes first, before anything is awaited: its
+  /// result or message together with the values it names. Every change of
+  /// the expression ends here - a key, a paste, a recalled line, [undo] and
+  /// [redo] - so this is the one place that has to take them away, and none
+  /// of those can leave the values of a result that is gone on display.
   Future<void> _requestPreview() async {
     var snapshot = state;
     if (snapshot.inputPhase != InputPhase.editing) return;
@@ -503,7 +514,11 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
       unawaited(_requestPreview());
       return;
     }
-    // The short form of a giant factorial (m × 10^E) is all there is of it.
+    // Only the short form of a giant factorial is written with " × 10^"
+    // (GammaCombinatorics.giantDisplay); engineering notation itself reads
+    // 827.115e3, so it is not held back here when it is switched off again.
+    // That short form is all that is shown of such a number, in either
+    // notation: formatted anew it would come back with 34 digits, and stay so.
     if (s.livePreviewPrimary.contains(' × 10^')) return;
     try {
       final value = CalcValueCodec.decode(shown);

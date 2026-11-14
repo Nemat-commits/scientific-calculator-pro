@@ -455,6 +455,50 @@ void main() {
       await calculator.memoryAdd();
       expect(state().variables['M'], '12');
     });
+
+    test('undo and redo take the result and its values off the display at once', () async {
+      type(<CalcKey>[x, op('×'), digit('2')]);
+      await calculator.evaluateWith(
+        <String, String>{'x': number('5')},
+        note: 'x = 5',
+        entries: <String, String>{'x': '5'},
+      );
+      expect(state().livePreviewPrimary, '10');
+      expect(state().substitution, 'x = 5');
+      expect(calculator.calcEntries, <String, String>{'x': '5'});
+
+      // Not with the next preview, but in the same call: the values named a
+      // result of the expression as it was.
+      calculator.undo();
+      expect(calculator.expressionText(), 'x×');
+      expect(state().substitution, isNull);
+      expect(state().livePreviewPrimary, '');
+      expect(calculator.calcEntries, isEmpty);
+
+      calculator.undo();
+      expect(calculator.expressionText(), 'x');
+      await calculator.evaluateWith(<String, String>{'x': number('5')}, note: 'x = 5');
+      expect(state().livePreviewPrimary, '5');
+      calculator.redo();
+      expect(calculator.expressionText(), 'x×');
+      expect(state().substitution, isNull);
+      expect(state().livePreviewPrimary, '');
+
+      // The message of values that failed goes the same way.
+      await calculator.evaluateWith(<String, String>{'x': number('5')}, note: 'x = 5');
+      expect(state().substitution, 'x = 5');
+      expect(state().errorMessage, isNotNull, reason: 'x× is not a whole expression');
+      calculator.redo();
+      expect(calculator.expressionText(), 'x×2');
+      expect(state().substitution, isNull);
+      expect(state().errorMessage, isNull);
+
+      // What CALC had on display is not what M+ adds afterwards.
+      await calculator.evaluateWith(<String, String>{'x': number('5')}, note: 'x = 5');
+      calculator.undo();
+      await calculator.memoryAdd();
+      expect(state().variables['M'], '0', reason: 'x× has no value, and the 10 of before is gone');
+    });
   });
 
   group('ENG', () {
@@ -490,6 +534,35 @@ void main() {
       calculator.toggleEngineering();
       expect(state().livePreviewPrimary, '5000');
       expect(state().substitution, 'x = 2500');
+    });
+
+    test('leaves the short form of a huge factorial as it is, both ways', () async {
+      // The eleven digits of the short form are all that is shown of such a
+      // number; written out anew it would come back with 34 of them.
+      const short = '4.2285779266 × 10^16325';
+      calculator.pasteText('5000!');
+      await calculator.evaluate();
+      expect(state().livePreviewPrimary, short);
+      calculator.toggleEngineering();
+      expect(state().isEngineering, isTrue);
+      expect(state().livePreviewPrimary, short);
+      calculator.toggleEngineering();
+      expect(state().isEngineering, isFalse);
+      expect(state().livePreviewPrimary, short);
+
+      // With ENG on, = gives the same short form.
+      calculator.toggleEngineering();
+      await calculator.evaluate();
+      expect(state().livePreviewPrimary, short);
+
+      // Its value is a number like any other: what is computed from it follows the notation.
+      type(<CalcKey>[op('÷'), digit('2')]);
+      await calculator.evaluate();
+      expect(state().livePreviewPrimary, startsWith('211.428896330277'));
+      expect(state().livePreviewPrimary, endsWith('e16323'));
+      calculator.toggleEngineering();
+      expect(state().livePreviewPrimary, startsWith('2.11428896330277'));
+      expect(state().livePreviewPrimary, endsWith('e16325'));
     });
 
     test('is remembered with the settings', () {

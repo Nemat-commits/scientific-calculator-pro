@@ -224,6 +224,11 @@ void main() {
     await capture(tester, '05_portrait_calc_prompt');
     await tapText('Evaluate');
     await capture(tester, '05_portrait_calc_result');
+    // On a tab that folds the display, the bar shows these values with their result.
+    n.setActiveTab(2);
+    await capture(tester, '05_portrait_calc_folded');
+    n.setActiveTab(1);
+    await settle(tester);
 
     // Engineering notation, and the row of further functions.
     n.press(const ClearKey());

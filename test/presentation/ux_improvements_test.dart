@@ -106,6 +106,32 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('the bar writes the last answer in the notation that is on', (tester) async {
+      final container = await pumpCalculator(tester);
+      final notifier = container.read(calculatorProvider.notifier);
+      notifier.pasteText('12345×67');
+      await commit(tester, container);
+      notifier.setActiveTab(2);
+      await settle(tester);
+      expect(find.bySemanticsLabel('Ans: 827115'), findsOneWidget);
+
+      notifier.toggleEngineering();
+      await settle(tester);
+      expect(find.bySemanticsLabel('Ans: 827.115e3'), findsOneWidget);
+      // Drawn as 827.115×10³, like the result row.
+      final shown = tester.widget<ResultText>(
+        find.descendant(of: find.byType(PersistentDisplayCard), matching: find.byType(ResultText)),
+      );
+      expect(ResultText.segments(shown.value), <(String, bool)>[('827.115', false), ('×10', false), ('3', true)]);
+
+      // The ENG badge of the bar switches back, and the answer follows.
+      await tester.tap(find.bySemanticsLabel('Engineering notation: ENG'));
+      await settle(tester);
+      expect(stateOf(container).isEngineering, isFalse);
+      expect(find.bySemanticsLabel('Ans: 827115'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('never folds in the dual-pane layout', (tester) async {
       final container = await pumpCalculator(tester, size: const Size(1280, 800));
       final full = cardHeight(tester);
@@ -160,6 +186,49 @@ void main() {
       await tester.pump(ToastHost.duration);
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.textContaining('Real mode'), findsNothing);
+    });
+
+    testWidgets('the angle unit badge names the unit it switches to, and what it says is true', (tester) async {
+      final container = await pumpCalculator(tester);
+      final notifier = container.read(calculatorProvider.notifier);
+      Future<String> result(String expression) async {
+        notifier
+          ..press(const ClearKey())
+          ..pasteText(expression);
+        await commit(tester, container);
+        return stateOf(container).livePreviewPrimary;
+      }
+
+      expect(stateOf(container).angleUnit, AngleUnit.deg);
+      await tester.tap(find.bySemanticsLabel('Angle unit: DEG'));
+      await shortly(tester);
+      expect(stateOf(container).angleUnit, AngleUnit.rad);
+      expect(find.text('Radians · sin(π ÷ 2) = 1'), findsOneWidget);
+      expect(await result('sin(π÷2)'), '1');
+
+      await tester.tap(find.bySemanticsLabel('Angle unit: RAD'));
+      await shortly(tester);
+      expect(stateOf(container).angleUnit, AngleUnit.grad);
+      expect(find.textContaining('Radians'), findsNothing, reason: 'the next hint replaces the one before');
+      expect(find.text('Gradians · sin(100) = 1'), findsOneWidget);
+      expect(await result('sin(100)'), '1');
+
+      await tester.tap(find.bySemanticsLabel('Angle unit: GRAD'));
+      await shortly(tester);
+      expect(stateOf(container).angleUnit, AngleUnit.deg);
+      expect(find.text('Degrees · sin(90) = 1'), findsOneWidget);
+      expect(await result('sin(90)'), '1');
+
+      // The hint goes away by itself, and the badge of the folded bar gives it as well.
+      await tester.pump(ToastHost.duration);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.textContaining('Degrees'), findsNothing);
+      notifier.setActiveTab(3);
+      await settle(tester);
+      await tester.tap(find.bySemanticsLabel('Angle unit: DEG'));
+      await shortly(tester);
+      expect(find.text(ModeHints.radians), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 
