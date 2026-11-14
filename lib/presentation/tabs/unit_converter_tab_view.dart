@@ -114,11 +114,13 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
               // Where units say how they are built, that takes half of the line.
               flex: _current.hasSteps ? 5 : 4,
               child: unit.step == null
+                  // A long name takes a second line: what stands at its end
+                  // ("thermochemical", "metric", "US") says which unit it is.
                   ? Text(
                       unit.name,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: StepAndName.nameStyle,
+                      style: StepAndName.wrappedNameStyle,
                     )
                   : StepAndName(step: unit.step!, name: unit.name, category: _current),
             ),
@@ -291,8 +293,9 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
 
 /// How a unit is built from the one below it (`1000 kB`) and its name.
 ///
-/// The step always shows. The names show where every unit of the [category]
-/// has room for its own - in all of its lines or in none, never cut short.
+/// The two stand side by side where every unit of the [category] has room
+/// for that, and otherwise one above the other - the same way in all lines
+/// of the category, and never cut short.
 class StepAndName extends StatelessWidget {
   const StepAndName({super.key, required this.step, required this.name, required this.category});
 
@@ -302,6 +305,9 @@ class StepAndName extends StatelessWidget {
 
   static final TextStyle stepStyle = AppTypography.mono(size: 11.5, color: AppColors.textSecondary);
   static final TextStyle nameStyle = AppTypography.ui(size: 11.5, color: AppColors.textMuted);
+
+  /// The same for a name that may take two lines.
+  static final TextStyle wrappedNameStyle = AppTypography.ui(size: 11.5, color: AppColors.textMuted, height: 1.2);
   static const double gap = 8;
 
   static double _width(String text, TextStyle style, TextScaler scaler) {
@@ -338,17 +344,17 @@ class StepAndName extends StatelessWidget {
     final scaler = MediaQuery.textScalerOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final named = widthOfBoth(category, scaler) <= constraints.maxWidth;
-        return Row(
-          children: <Widget>[
-            Flexible(
-              child: Text(step, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: stepStyle),
-            ),
-            if (named) ...<Widget>[
-              const SizedBox(width: gap),
-              Text(name, maxLines: 1, style: nameStyle),
-            ],
-          ],
+        final stepText = Text(step, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: stepStyle);
+        final nameText = Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: nameStyle);
+        if (widthOfBoth(category, scaler) <= constraints.maxWidth) {
+          return Row(
+            children: <Widget>[stepText, const SizedBox(width: gap), Flexible(child: nameText)],
+          );
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[stepText, const SizedBox(height: 1), nameText],
         );
       },
     );

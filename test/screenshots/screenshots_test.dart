@@ -360,5 +360,19 @@ void main() {
     await settle(tester);
     await tester.tap(keyIn(UnitConverterTabView, 'Clear').hitTestable().first);
     await capture(tester, '16_small_phone_convert_zero');
+
+    // Narrow lines: the step of a data unit stands above its name, and a long name takes two lines.
+    Future<void> category(String name) async {
+      final chip = find.descendant(of: find.byType(UnitConverterTabView), matching: find.text(name));
+      await tester.ensureVisible(chip);
+      await settle(tester);
+      await tester.tap(chip);
+      await settle(tester);
+    }
+
+    await category('Data');
+    await capture(tester, '16_small_phone_convert_data');
+    await category('Power');
+    await capture(tester, '16_small_phone_convert_power');
   }, skip: !enabled);
 }

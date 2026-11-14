@@ -188,7 +188,7 @@ abstract final class UnitDefinitions {
       UnitDef('hp', 'hp', 'Horsepower (mechanical)', '37284993579113511/50000000000000'),
       UnitDef('ps', 'PS', 'Horsepower (metric)', '735.49875'),
       UnitDef('btuh', 'BTU/h', 'BTU per hour', '52752792631/180000000000'),
-      UnitDef('ftlbfs', 'ft·lbf/s', 'Foot-pound force per second', '3389544870828501/2500000000000000'),
+      UnitDef('ftlbfs', 'ft·lbf/s', 'Foot-pound per second', '3389544870828501/2500000000000000'),
     ]),
     UnitCategory('angle', 'Angle', '°', <UnitDef>[
       UnitDef('deg', '°', 'Degree', '1'),

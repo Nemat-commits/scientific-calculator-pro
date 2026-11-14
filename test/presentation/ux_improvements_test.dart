@@ -1,6 +1,8 @@
 // The layout and interaction changes of version 3.1: the folding display,
 // the mode hints, the reworked keypads and the "send to calculator" paths.
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modern_scientific_calculator/core/constants/unit_definitions.dart';
 import 'package:modern_scientific_calculator/domain/editor/calc_key.dart';
@@ -443,15 +445,61 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('a narrow screen keeps the steps and leaves the names out rather than cutting them', (tester) async {
+      testWidgets('step and name stand side by side, and one above the other on a narrow screen', (tester) async {
+        Rect of(String text) => tester.getRect(inConverter(find.text(text)));
+
+        await openData(tester);
+        expect(of('1000 B').right, lessThan(of('Kilobyte').left));
+        expect(of('1000 B').center.dy, moreOrLessEquals(of('Kilobyte').center.dy, epsilon: 2));
+
         await openData(tester, size: const Size(360, 640));
-        expect(inConverter(find.text('1000 B')), findsOneWidget);
-        expect(inConverter(find.text('1024 B')), findsOneWidget);
-        expect(inConverter(find.text('Kilobyte')), findsNothing);
-        expect(inConverter(find.text('Kibibyte')), findsNothing);
-        expect(inConverter(find.text('Byte')), findsOneWidget, reason: 'a unit without a step keeps its name');
+        for (final (step, name) in <(String, String)>[('1000 B', 'Kilobyte'), ('1024 B', 'Kibibyte')]) {
+          expect(of(step).bottom, lessThanOrEqualTo(of(name).top + 0.5), reason: '$step above $name');
+          expect(of(step).left, moreOrLessEquals(of(name).left, epsilon: 0.5));
+          for (final text in <String>[step, name]) {
+            expect(tester.renderObject<RenderParagraph>(inConverter(find.text(text))).didExceedMaxLines, isFalse);
+          }
+        }
         expect(tester.takeException(), isNull);
       });
+    });
+
+    testWidgets('a long unit name takes a second line, so that what tells two units apart is not cut', (tester) async {
+      for (final size in <Size>[const Size(412, 915), const Size(360, 640)]) {
+        final container = await pumpCalculator(tester, size: size);
+        container.read(calculatorProvider.notifier).setActiveTab(3);
+        await settle(tester);
+        for (final category in UnitDefinitions.categories) {
+          final chip = inConverter(find.text(category.name));
+          await tester.ensureVisible(chip);
+          await settle(tester);
+          await tester.tap(chip);
+          await settle(tester);
+          // The list builds its lines as they scroll into view.
+          final seen = <String>{};
+          for (var page = 0; page < 4; page++) {
+            for (final unit in category.units) {
+              final name = inConverter(find.text(unit.name));
+              if (name.evaluate().isEmpty) continue;
+              seen.add(unit.name);
+              // (The torr is its own symbol: two texts.)
+              expect(
+                tester.renderObjectList<RenderParagraph>(name).any((text) => text.didExceedMaxLines),
+                isFalse,
+                reason: '${unit.name} at a width of ${size.width}',
+              );
+            }
+            await tester.drag(inConverter(find.byType(Scrollable)).last, const Offset(0, -160));
+            await settle(tester);
+          }
+          expect(
+            seen,
+            containsAll(category.units.map((u) => u.name)),
+            reason: '${category.name} at a width of ${size.width}',
+          );
+        }
+        expect(tester.takeException(), isNull);
+      }
     });
 
     testWidgets('the selected category chip scrolls into view', (tester) async {

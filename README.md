@@ -123,16 +123,16 @@ hold the network permission, and its fonts are bundled.
 
 ## Download
 
-The APKs of version 3.2.0 are in [`releases/`](releases/):
+The APKs of version 3.2.0 are in [`releases/`](releases/). The links download
+the file:
 
 | File | Size | Use it for |
 | --- | --- | --- |
-| [`scientific-calculator-pro-3.2.0-arm64-v8a.apk`](releases/scientific-calculator-pro-3.2.0-arm64-v8a.apk) | 19 MB | Phones and tablets running 64-bit ARM Android (most current devices). Take this one first. |
-| [`scientific-calculator-pro-3.2.0-armeabi-v7a.apk`](releases/scientific-calculator-pro-3.2.0-armeabi-v7a.apk) | 17 MB | 32-bit ARM Android: older devices and many entry-level ones. Take it when Android refuses the first one as not compatible. |
+| [`scientific-calculator-pro-3.2.0-arm64-v8a.apk`](https://github.com/Nemat-commits/scientific-calculator-pro/raw/main/releases/scientific-calculator-pro-3.2.0-arm64-v8a.apk) | 19 MB | Phones and tablets running 64-bit ARM Android (most current devices). Take this one first. |
+| [`scientific-calculator-pro-3.2.0-armeabi-v7a.apk`](https://github.com/Nemat-commits/scientific-calculator-pro/raw/main/releases/scientific-calculator-pro-3.2.0-armeabi-v7a.apk) | 17 MB | 32-bit ARM Android: older devices and many entry-level ones. Take it when Android refuses the first one as not compatible. |
 
-On the page of a file, **Download raw file** saves the APK.
-[`releases/README.md`](releases/README.md) has the checksums and says how to
-install.
+[`releases/README.md`](releases/README.md) has the checksums, the commit the
+files were built from, and how to install them.
 
 Every run of the
 [CI workflow](https://github.com/Nemat-commits/scientific-calculator-pro/actions/workflows/ci.yml)
@@ -221,7 +221,7 @@ dart test test/domain/engine_verification_test.dart --plain-name "MathEngine"   
 dart test test/domain/engine_verification_test.dart                              # gate 2: all 24 cases, under 50 ms together
 dart test test/domain                                                            # the whole engine and editor suite; needs no Flutter
 flutter test                                                                     # gate 3: the above plus state, isolates and widgets
-CALC_SCREENSHOTS=1 flutter test test/screenshots                                 # renders 35 PNGs into build/screenshots/
+CALC_SCREENSHOTS=1 flutter test test/screenshots                                 # renders 38 PNGs into build/screenshots/
 ```
 
 | Suite | What it covers |
@@ -233,7 +233,7 @@ CALC_SCREENSHOTS=1 flutter test test/screenshots                                
 | `test/presentation/calculator_notifier_test.dart` | Live preview, what the next key does after `=`, errors, undo, memory, variables, persistence of modes and draft, `CALC` (nothing stored, formula and caret kept, errors that do not lock, mode changes) and `ENG`. |
 | `test/presentation/evaluator_isolate_pool_test.dart` | Evaluation on a worker isolate, cancellation by newer input, the 250 ms preview budget, the watchdog that replaces a stuck worker. |
 | `test/presentation/calculator_shell_test.dart`, `display_card_test.dart` | Keys, hardware keyboard, gestures, every tab and Lab mode at four screen sizes without overflow, shrinking and scrolling of long lines, screen-reader labels. |
-| `test/presentation/ux_improvements_test.dart` | The changes of 3.1: folding and reopening of the display, mode messages, placeholder and ghost parentheses, the quick function row, the parenthesis counter, the corner legends of the scientific grid, sending values from Lab, Convert and History to the expression, Base-N on a small phone; the data units with their steps. |
+| `test/presentation/ux_improvements_test.dart` | The changes of 3.1: folding and reopening of the display, mode messages, placeholder and ghost parentheses, the quick function row, the parenthesis counter, the corner legends of the scientific grid, sending values from Lab, Convert and History to the expression, Base-N on a small phone; the data units with their steps, and that no unit name is cut short on a phone. |
 | `test/presentation/scientific_keys_test.dart` | The changes of 3.2: every key of the scientific grid in its place with and without `INV`, the colour of `INV`, the `f(x)` rows, `Σ`, `Π`, mixed fraction, `∠`, `Rand` and `ENG` from their keys, and the `CALC` prompt from the keys and from a hardware keyboard. |
 | `test/screenshots/screenshots_test.dart` | Skipped unless `CALC_SCREENSHOTS=1`; then renders the screens at phone, small-phone, landscape and tablet sizes. |
 
@@ -427,6 +427,14 @@ families side by side: `1 MB = 1000 kB = 976.5625 KiB`, and
 `1 MiB = 1024 KiB = 1048.576 kB`. Every line of the list says how its unit is
 built, and a note above the list tells the two families apart.
 
+Where a name exists in several sizes, the line says which one it is: the
+gallon, pint and spoon measures are the US ones (the imperial gallon has a
+line of its own), the calorie is the thermochemical one (4.184 J), the BTU
+that of the International Table, the horsepower comes as mechanical
+(550 ft·lbf/s) and as metric (75 kgf·m/s), the ton as short, long and metric,
+and a year is the Julian year of 365.25 days with a month as a twelfth of
+it. A long name takes a second line rather than being cut.
+
 ## Design decisions and deviations from the blueprint
 
 The app was built to a written specification, `ARCHITECTURE_BLUEPRINT.md`
@@ -519,15 +527,15 @@ left a choice:
 On CI, with the code as it is in this commit:
 
 - `flutter analyze` reports no issues and `dart format` no changes.
-- All 24 blueprint cases pass and take 10 to 15 ms together (budget 50 ms).
-- `flutter test`: 214 tests pass (112 of them engine and editor tests that
+- All 24 blueprint cases pass and take 7 to 15 ms together (budget 50 ms).
+- `flutter test`: 215 tests pass (112 of them engine and editor tests that
   also run under plain `dart test`); the 4 screenshot tests are skipped
   unless requested and pass when run.
 - The numbers of Convert and Lab agree with the reference values (see
   [Checked against references](#checked-against-references)).
 - The release APKs build, and `apksigner` accepts them.
 - On an Android 14 (API 34) x86_64 emulator at 1080×2400 the release APK
-  starts cold in about 3.5 s, computes typed input, `Ans` and `5000!`, lays
+  starts cold in about 3 s, computes typed input, `Ans` and `5000!`, lays
   out in landscape, shows all five tabs with the display folded into its bar
   on Lab, Convert and History, opens the folded display on a tap, and still
   has its history after being force-stopped and restarted. On the scientific
