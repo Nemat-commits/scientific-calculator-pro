@@ -127,15 +127,13 @@ hold the network permission, and its fonts are bundled.
 
 ## Download
 
-The APKs of version 3.2.0 are in [`releases/`](releases/). They are one patch
-behind the sources, which are 3.2.1: what [changed in 3.2.1](#version-321) is
-not in them yet, and APKs that have it are attached to the CI runs (see below
-the table). The links download the file:
+The APKs of version 3.2.1 are in [`releases/`](releases/). The links download
+the file:
 
 | File | Size | Use it for |
 | --- | --- | --- |
-| [`scientific-calculator-pro-3.2.0-arm64-v8a.apk`](https://github.com/Nemat-commits/scientific-calculator-pro/raw/main/releases/scientific-calculator-pro-3.2.0-arm64-v8a.apk) | 19 MB | Phones and tablets running 64-bit ARM Android (most current devices). Take this one first. |
-| [`scientific-calculator-pro-3.2.0-armeabi-v7a.apk`](https://github.com/Nemat-commits/scientific-calculator-pro/raw/main/releases/scientific-calculator-pro-3.2.0-armeabi-v7a.apk) | 17 MB | 32-bit ARM Android: older devices and many entry-level ones. Take it when Android refuses the first one as not compatible. |
+| [`scientific-calculator-pro-3.2.1-arm64-v8a.apk`](https://github.com/Nemat-commits/scientific-calculator-pro/raw/main/releases/scientific-calculator-pro-3.2.1-arm64-v8a.apk) | 19 MB | Phones and tablets running 64-bit ARM Android (most current devices). Take this one first. |
+| [`scientific-calculator-pro-3.2.1-armeabi-v7a.apk`](https://github.com/Nemat-commits/scientific-calculator-pro/raw/main/releases/scientific-calculator-pro-3.2.1-armeabi-v7a.apk) | 17 MB | 32-bit ARM Android: older devices and many entry-level ones. Take it when Android refuses the first one as not compatible. |
 
 [`releases/README.md`](releases/README.md) has the checksums, the commit the
 files were built from, and how to install them.
@@ -590,8 +588,8 @@ On CI, with the code as it is in this commit:
   What the screens show was read off the screenshots of a run: for 3.2.0 all
   of them, for 3.2.1 those from the result of `CALC` onwards. The run of
   3.2.1 was the one for commit `c9fbfd9` of pull request #8, which has the
-  app sources of this version; the commit after it changed the CI files and
-  this README only.
+  app sources of this version; the commits after it changed the CI files,
+  this README and `releases/` only.
 
 Not verified:
 
@@ -603,7 +601,7 @@ Not verified:
 - No physical device was used. Haptics, the 90/120 Hz request, real GPUs and
   ARM hardware are exercised only by code review and by the build. The
   emulator ran the universal APK; the two ARM APKs in `releases/` come from
-  the same build, and neither was installed on a device.
+  the same build and were not installed on a device for these checks.
 - Only API 34 was run. API 24 to 33 and 35+ are covered by the build
   configuration alone.
 - Signing with a keystore was exercised on CI once, with a throw-away test
