@@ -126,16 +126,21 @@ abstract final class UnitDefinitions {
       UnitDef('yr', 'yr', 'Julian year', '31557600'),
     ]),
     UnitCategory('data', 'Data', 'B', <UnitDef>[
+      // Two families that are easily taken for each other. The SI prefixes
+      // are powers of 1000 (1 MB = 1000 kB: drives, networks), the IEC
+      // prefixes powers of 1024 (1 MiB = 1024 KiB: memory, and what many
+      // systems show as "MB"). Each name says which one it is, and the
+      // twins stand next to each other.
       UnitDef('bit', 'bit', 'Bit', '0.125'),
       UnitDef('b', 'B', 'Byte', '1'),
-      UnitDef('kb', 'kB', 'Kilobyte', '1000'),
-      UnitDef('mb', 'MB', 'Megabyte', '1e6'),
-      UnitDef('gb', 'GB', 'Gigabyte', '1e9'),
-      UnitDef('tb', 'TB', 'Terabyte', '1e12'),
-      UnitDef('kib', 'KiB', 'Kibibyte', '1024'),
-      UnitDef('mib', 'MiB', 'Mebibyte', '1048576'),
-      UnitDef('gib', 'GiB', 'Gibibyte', '1073741824'),
-      UnitDef('tib', 'TiB', 'Tebibyte', '1099511627776'),
+      UnitDef('kb', 'kB', 'Kilobyte · 1000 B', '1000'),
+      UnitDef('kib', 'KiB', 'Kibibyte · 1024 B', '1024'),
+      UnitDef('mb', 'MB', 'Megabyte · 1000 kB', '1e6'),
+      UnitDef('mib', 'MiB', 'Mebibyte · 1024 KiB', '1048576'),
+      UnitDef('gb', 'GB', 'Gigabyte · 1000 MB', '1e9'),
+      UnitDef('gib', 'GiB', 'Gibibyte · 1024 MiB', '1073741824'),
+      UnitDef('tb', 'TB', 'Terabyte · 1000 GB', '1e12'),
+      UnitDef('tib', 'TiB', 'Tebibyte · 1024 GiB', '1099511627776'),
     ]),
     UnitCategory('pressure', 'Pressure', 'Pa', <UnitDef>[
       UnitDef('pa', 'Pa', 'Pascal', '1'),
@@ -146,7 +151,7 @@ abstract final class UnitDefinitions {
       UnitDef('atm', 'atm', 'Standard atmosphere', '101325'),
       UnitDef('torr', 'Torr', 'Torr', '20265/152'),
       UnitDef('mmhg', 'mmHg', 'Millimetre of mercury', '133.322387415'),
-      UnitDef('inhg', 'inHg', 'Inch of mercury', '3386.389'),
+      UnitDef('inhg', 'inHg', 'Inch of mercury', '3386.388640341'), // 25.4 mmHg
       UnitDef('psi', 'psi', 'Pound per square inch', '8896443230521/1290320000'),
     ]),
     UnitCategory('energy', 'Energy', 'J', <UnitDef>[

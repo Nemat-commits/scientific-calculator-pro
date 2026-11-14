@@ -52,7 +52,7 @@ abstract final class MathEngine {
     Map<String, CalcValue>? variables,
     CancellationToken? token,
   }) {
-    final tokens = TreeToTokenLowerer.lower(root);
+    final tokens = TreeToTokenLowerer.lower(root, programmer: context.baseN != null);
     if (tokens.isEmpty) throw const SyntaxError('Empty expression', position: 0);
     final ast = PrattAstParser.parse(ImplicitMulNormalizer.normalize(tokens, context.juxtaposition));
     final evaluator = AstEvaluator(context: context, variables: variables, token: token);

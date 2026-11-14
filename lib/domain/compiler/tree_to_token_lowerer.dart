@@ -58,10 +58,12 @@ abstract final class TreeToTokenLowerer {
   static const Token _close = Token(TokenKind.rightParen, ')');
   static const Token _comma = Token(TokenKind.comma, ',');
 
-  /// Token stream of [sequence].
-  static List<Token> lower(EditorSequence sequence) {
+  /// Token stream of [sequence]. With [programmer] the digits are those of a
+  /// Base-N number, where `E` is the hexadecimal digit and never an exponent
+  /// marker: `1E−1` is a subtraction.
+  static List<Token> lower(EditorSequence sequence, {bool programmer = false}) {
     final out = <Token>[];
-    _lowerSequence(sequence, out);
+    _lowerSequence(sequence, out, programmer: programmer);
     return out;
   }
 
@@ -101,7 +103,7 @@ abstract final class TreeToTokenLowerer {
   /// Concatenated lexemes of [tokens].
   static String textOf(List<Token> tokens) => tokens.where((t) => !t.implicit).map((t) => t.text).join();
 
-  static void _lowerSequence(EditorSequence sequence, List<Token> out, {bool pretty = false}) {
+  static void _lowerSequence(EditorSequence sequence, List<Token> out, {bool pretty = false, bool programmer = false}) {
     final literal = StringBuffer();
 
     void flush() {
@@ -114,7 +116,7 @@ abstract final class TreeToTokenLowerer {
     // A parenthesis that is still open where a slot ends is closed there, so
     // it cannot swallow what follows the template: 2^[(1+1]×3 is 2^((1+1))×3.
     void plain(EditorSequence inner) {
-      _lowerSequence(inner, out, pretty: pretty);
+      _lowerSequence(inner, out, pretty: pretty, programmer: programmer);
       for (var open = inner.unclosedParentheses; open > 0; open--) {
         out.add(_close);
       }
@@ -132,7 +134,7 @@ abstract final class TreeToTokenLowerer {
       switch (node) {
         case AtomNode(:final text, :final kind):
           // A sign directly behind the exponent marker belongs to the literal.
-          final afterExponent = literal.isNotEmpty && literal.toString().endsWith('E');
+          final afterExponent = !programmer && literal.isNotEmpty && literal.toString().endsWith('E');
           if (kind == AtomKind.digit) {
             literal.write(text);
           } else if (afterExponent && kind == AtomKind.binaryOp && (text == '−' || text == '-' || text == '+')) {
