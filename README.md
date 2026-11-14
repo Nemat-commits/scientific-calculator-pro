@@ -129,7 +129,8 @@ hold the network permission, and its fonts are bundled.
 
 The APKs of version 3.2.0 are in [`releases/`](releases/). They are one patch
 behind the sources, which are 3.2.1: what [changed in 3.2.1](#version-321) is
-not in them yet. The links download the file:
+not in them yet, and APKs that have it are attached to the CI runs (see below
+the table). The links download the file:
 
 | File | Size | Use it for |
 | --- | --- | --- |
@@ -580,19 +581,25 @@ On CI, with the code as it is in this commit:
   has its history after being force-stopped and restarted. On the scientific
   tab `INV` turns the keys amber, `CALC` asks for `x`, takes `5` from the
   keyboard and shows `28` for `x×x+3` with the formula still in the editor,
-  and a `Σ` filled in slot by slot gives `10` for the sum of 1 to 4. Logcat
-  contains no Flutter error. What the screens show was read off the
-  screenshots of the run for 3.2.0. For 3.2.1 the script ran and passed; its
-  screenshots were not looked at.
+  and a `Σ` filled in slot by slot gives `10` for the sum of 1 to 4. While
+  the result of `CALC` is on display, the bar on Lab shows `x = 5 → 28`, and
+  a tap on its `DEG` badge switches to `RAD` and says
+  `Radians · sin(π ÷ 2) = 1`. With `ENG` switched on by its key, `12345×67`
+  reads `827.115×10³` and the bar `Ans = 827.115×10³`; a tap on the `ENG`
+  badge of the bar brings `827,115` back. Logcat contains no Flutter error.
+  What the screens show was read off the screenshots of a run: for 3.2.0 all
+  of them, for 3.2.1 those from the result of `CALC` onwards. The run of
+  3.2.1 was the one for commit `c9fbfd9` of pull request #8, which has the
+  app sources of this version; the commit after it changed the CI files and
+  this README only.
 
 Not verified:
 
-- The changes of 3.2.1 were not looked at on Android. The emulator script
-  goes through the folded display after `CALC` and with `ENG`, and taps the
-  angle unit, but its screenshots of this version have not been read. The
-  changes are covered by widget tests and were looked at in pictures that the
-  test engine rendered at 360 and 412 dp of width, with the layout code and
-  the fonts of the app.
+- In the folded display, values that are too long for the line of their
+  result and the message of values that failed were not produced on Android.
+  They are covered by widget tests and were looked at in pictures that the
+  test engine rendered at 360 and 412 dp of width, at the normal and at the
+  largest text size, with the layout code and the fonts of the app.
 - No physical device was used. Haptics, the 90/120 Hz request, real GPUs and
   ARM hardware are exercised only by code review and by the build. The
   emulator ran the universal APK; the two ARM APKs in `releases/` come from
