@@ -410,33 +410,74 @@ class _MiniBar extends ConsumerWidget {
         ),
       );
 
-  /// Values that failed, with the message of the open display: it follows
-  /// the badge and runs on to a second line.
+  /// Values that failed, with the message of the open display.
+  ///
+  /// A message that has room on one line is laid out like a result: beside
+  /// the values or, in one piece, below them. A longer one follows the values
+  /// in their line and runs on to a second, where it is cut if it must be.
   ///
   /// A widget in a line of text is enlarged together with the text. The badge
-  /// enlarges its own text already, so the line as a whole is not scaled
-  /// and the message is given its size by [scaler] here.
-  Widget _failed(String values, String message, TextScaler scaler) => Semantics(
-        container: true,
-        label: 'Evaluated with $values: $message',
-        excludeSemantics: true,
-        child: Text.rich(
-          TextSpan(
-            children: <InlineSpan>[
-              WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: StatusBadge(values, highlighted: true, margin: EdgeInsets.zero),
-              ),
-              TextSpan(text: '  $message'),
-            ],
+  /// enlarges its own text already, so the message is given its size here
+  /// and nothing is scaled a second time.
+  Widget _failed(BuildContext context, String values, String message) {
+    // The style as [Text] resolves it, for a width that is the drawn one.
+    var style = DefaultTextStyle.of(context).style.merge(
+          AppTypography.ui(
+            size: MediaQuery.textScalerOf(context).scale(12),
+            weight: AppWeight.medium,
+            color: AppColors.error,
           ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.right,
-          textScaler: TextScaler.noScaling,
-          style: AppTypography.ui(size: scaler.scale(12), weight: AppWeight.medium, color: AppColors.error),
-        ),
-      );
+        );
+    if (MediaQuery.boldTextOf(context)) style = style.merge(const TextStyle(fontWeight: FontWeight.bold));
+    final badge = StatusBadge(values, highlighted: true, margin: EdgeInsets.zero);
+    return Semantics(
+      container: true,
+      label: 'Evaluated with $values: $message',
+      excludeSemantics: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final line = TextPainter(
+            text: TextSpan(text: message, style: style),
+            textDirection: Directionality.of(context),
+            maxLines: 1,
+          )..layout();
+          final fitsOneLine = line.width <= constraints.maxWidth;
+          line.dispose();
+          if (fitsOneLine) {
+            return Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              children: <Widget>[
+                badge,
+                Text(
+                  message,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  textScaler: TextScaler.noScaling,
+                  style: style,
+                ),
+              ],
+            );
+          }
+          return Text.rich(
+            TextSpan(
+              children: <InlineSpan>[
+                WidgetSpan(alignment: PlaceholderAlignment.middle, child: badge),
+                TextSpan(text: '  $message'),
+              ],
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            textScaler: TextScaler.noScaling,
+            style: style,
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -446,7 +487,7 @@ class _MiniBar extends ConsumerWidget {
     if (values == null) {
       readout = _answer();
     } else if (value == null || state.errorMessage != null) {
-      readout = _failed(values, state.errorMessage ?? 'Error', MediaQuery.textScalerOf(context));
+      readout = _failed(context, values, state.errorMessage ?? 'Error');
     } else {
       readout = _evaluated(values, _short(value));
     }

@@ -245,8 +245,10 @@ CALC_SCREENSHOTS=1 flutter test test/screenshots                                
 `.github/scripts/emulator_smoke.sh <apk> <out-dir>` drives a release APK on a
 running emulator or device through `adb`: typed input, `=`, `Ans`, `5000!`,
 rotation, all tabs, the `INV` key, `CALC` with a value typed on the keyboard,
-a `Σ` filled in slot by slot, the folded display and its reopening, and a
-forced stop followed by a restart, with a screenshot after every step. It
+the folded display with that result on it, the angle unit badge and its hint,
+`ENG` from its key and switched off again in the folded display, a `Σ` filled
+in slot by slot, the folded display and its reopening, and a forced stop
+followed by a restart, with a screenshot after every step. It
 fails when the app is no longer running, when logcat shows a Flutter error or
 a crash, or when a tap leaves the screen as it was. It does not read the
 screen: whether the results are right and the history is back after the
@@ -540,7 +542,10 @@ Two things the folded display got wrong, and a message that was missing:
   had not given. It now shows what the open display shows: the badge with
   the values, an arrow and their result (ten digits, as for `Ans`), or the
   message of values that failed. Values that do not fit beside the result
-  take a line of their own above it instead of shrinking it.
+  take a line of their own above it instead of shrinking it, and so they do
+  above a message of one line. A longer message runs on from the values to a
+  second line and ends in `…` where the bar has no more room; a tap opens
+  the display, which has all of it.
 - **The angle unit says what it was switched to**, as the other modes do:
   `Degrees · sin(90) = 1`, `Radians · sin(π ÷ 2) = 1`,
   `Gradians · sin(100) = 1`.
@@ -562,7 +567,7 @@ On CI, with the code as it is in this commit:
 
 - `flutter analyze` reports no issues and `dart format` no changes.
 - All 24 blueprint cases pass and take 7 to 15 ms together (budget 50 ms).
-- `flutter test`: 224 tests pass (112 of them engine and editor tests that
+- `flutter test`: 225 tests pass (112 of them engine and editor tests that
   also run under plain `dart test`); the 4 screenshot tests are skipped
   unless requested and pass when run.
 - The numbers of Convert and Lab agree with the reference values (see
@@ -577,16 +582,17 @@ On CI, with the code as it is in this commit:
   keyboard and shows `28` for `x×x+3` with the formula still in the editor,
   and a `Σ` filled in slot by slot gives `10` for the sum of 1 to 4. Logcat
   contains no Flutter error. What the screens show was read off the
-  screenshots of the run for 3.2.0. For 3.2.1 the same script ran and passed;
-  its screenshots were not looked at.
+  screenshots of the run for 3.2.0. For 3.2.1 the script ran and passed; its
+  screenshots were not looked at.
 
 Not verified:
 
-- The changes of 3.2.1 were not run on Android. The emulator script does not
-  go to a folded tab while a result of `CALC` is on display, and does not tap
-  the angle unit. They are covered by widget tests and were looked at in
-  pictures that the test engine rendered at 360 and 412 dp of width, with the
-  layout code and the fonts of the app.
+- The changes of 3.2.1 were not looked at on Android. The emulator script
+  goes through the folded display after `CALC` and with `ENG`, and taps the
+  angle unit, but its screenshots of this version have not been read. The
+  changes are covered by widget tests and were looked at in pictures that the
+  test engine rendered at 360 and 412 dp of width, with the layout code and
+  the fonts of the app.
 - No physical device was used. Haptics, the 90/120 Hz request, real GPUs and
   ARM hardware are exercised only by code review and by the build. The
   emulator ran the universal APK; the two ARM APKs in `releases/` come from

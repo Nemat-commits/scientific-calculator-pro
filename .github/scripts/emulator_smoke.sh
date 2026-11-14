@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Installs the release APK on the running emulator and drives the real app:
 # hardware-keyboard input, "=" commit, a 16 326-digit factorial, rotation,
-# every tab, the INV, Σ and CALC keys of the scientific grid, the folding
-# display and a cold restart. Screenshots and logcat go to $2.
+# every tab, the INV, Σ, CALC and ENG keys of the scientific grid, the folding
+# display with what it shows after CALC and with ENG, the hint of the angle
+# unit and a cold restart. Screenshots and logcat go to $2.
 #
 # The script fails when the app is not running, when logcat shows an error or
 # when a tap that should change the screen leaves it as it was. It does not
@@ -64,6 +65,32 @@ adb shell "input text 'x*x+3'"; sleep 1
 key "$KEY_LEFT" "$ROW_6"; shot 06_calc_prompt;     changed 06_scientific_inv 06_calc_prompt      # asks for x
 adb shell "input text '5'"; adb shell input keyevent 66; sleep 3                                # x = 5 -> 28, formula kept
 shot 06_calc_result;                               changed 06_calc_prompt 06_calc_result
+
+# The folded display while a result of CALC is on it: the values with their
+# result (x = 5 → 28), not the Ans of the last "=".
+tab 2 "$TABS_OPEN";   shot 06_calc_folded;      changed 06_calc_result 06_calc_folded
+# The badges of the bar (same emulator): the angle unit comes first, ENG fourth.
+BADGE_ANGLE=$((W * 120 / 1000)); BADGE_ENG=$((W * 447 / 1000))
+# DEG → RAD. The hint is on screen for 1.5 s, so the tap and its screenshot are
+# one call. Two more taps bring DEG back.
+adb exec-out "input tap $BADGE_ANGLE $BAR >/dev/null 2>&1; sleep 0.4; screencap -p" > "$OUT/06_angle_hint.png"
+note "screenshot 06_angle_hint ($(wc -c < "$OUT/06_angle_hint.png") bytes)"
+changed 06_calc_folded 06_angle_hint
+sleep 2; key "$BADGE_ANGLE" "$BAR"; key "$BADGE_ANGLE" "$BAR"
+tab 1 "$TABS_FOLDED"                                                                            # back to the keys
+
+# ENG is what INV makes of the ×10ˣ key (fourth row, fourth column): the result
+# in engineering notation, and the answer in the bar with it. The ENG badge of
+# the bar switches back.
+KEY_ENG=$((W * 69 / 100)); ROW_4=$((ROW_1 + (ROW_6 - ROW_1) * 3 / 5))
+adb shell input keyevent 111
+adb shell "input text '12345*67'"; adb shell input keyevent 66; sleep 3                         # 827115
+key "$KEY_LEFT" "$ROW_1"; key "$KEY_ENG" "$ROW_4"
+shot 06_eng;                                    changed 06_calc_folded 06_eng                 # 827.115×10³
+tab 2 "$TABS_OPEN";   shot 06_eng_folded;       changed 06_eng 06_eng_folded                  # Ans = 827.115×10³
+key "$BADGE_ENG" "$BAR"; shot 06_eng_off;       changed 06_eng_folded 06_eng_off              # Ans = 827115
+tab 1 "$TABS_FOLDED"
+
 adb shell input keyevent 111
 key "$KEY_MID" "$ROW_1"                                                                         # Σ template
 adb shell "input text '1'"; adb shell input keyevent 22                                         # from 1 ...

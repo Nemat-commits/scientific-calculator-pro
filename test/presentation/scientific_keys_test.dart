@@ -760,10 +760,67 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('^Ans: ')), findsNothing);
       expect(badge('x = 0'), findsOneWidget);
       expect(barResult, findsNothing);
-      // The message follows the badge, in the colour of an error.
-      final shown = find.descendant(of: find.byType(PersistentDisplayCard), matching: find.textContaining(message!));
+      // The message stands beside the badge, in the colour of an error.
+      final shown = find.descendant(of: find.byType(PersistentDisplayCard), matching: find.text(message!));
       expect(tester.widget<Text>(shown).style?.color, AppColors.error);
-      expect(tester.widget<Text>(shown).maxLines, 2, reason: 'a long message runs on to a second line');
+      expect(tester.getRect(shown).left, greaterThan(tester.getRect(badge('x = 0')).right));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('in the folded display a short message stays in one piece, and only a long one is broken',
+        (tester) async {
+      final (_, notifier) = await openScientific(tester, size: const Size(360, 640));
+      Future<void> fold(String formula, Map<String, String> values) async {
+        notifier
+          ..setActiveTab(1)
+          ..press(const ClearKey())
+          ..pasteText(formula);
+        await settle(tester);
+        unawaited(notifier.evaluateWith(
+          <String, String>{
+            for (final MapEntry(:key, :value) in values.entries)
+              key: CalcValueCodec.encode(MathEngine.evaluateText(value).value),
+          },
+          note: values.entries.map((e) => '${e.key} = ${e.value}').join(', '),
+        ));
+        await settle(tester);
+        notifier.setActiveTab(2);
+        await settle(tester);
+      }
+
+      Finder inBar(Finder what) => find.descendant(of: find.byType(PersistentDisplayCard), matching: what);
+      const short = 'Division by zero';
+
+      // Beside the values while both have room on the line.
+      await fold('1÷x', <String, String>{'x': '0'});
+      var values = tester.getRect(badge('x = 0'));
+      var message = tester.getRect(inBar(find.text(short)));
+      expect(message.left, greaterThan(values.right));
+      expect(message.center.dy, moreOrLessEquals(values.center.dy, epsilon: 1));
+      final line = message.height;
+
+      // Below them when they have not: as a whole, not with its last word alone on the second line.
+      await fold('x÷y', <String, String>{'x': '1', 'y': '0'});
+      values = tester.getRect(badge('x = 1, y = 0'));
+      message = tester.getRect(inBar(find.text(short)));
+      expect(message.top, greaterThanOrEqualTo(values.bottom));
+      expect(message.height, line, reason: 'one line');
+      expect(message.right, moreOrLessEquals(values.right, epsilon: 0.5), reason: 'both end at the same edge');
+
+      // A message that is longer than the line follows the values and runs on to a second line.
+      const long = 'Square root of a negative number (enable CPLX)';
+      await fold('√(x)', <String, String>{'x': '−4'});
+      expect(find.bySemanticsLabel('Evaluated with x = −4: $long'), findsOneWidget);
+      final flowing = inBar(find.textContaining(long));
+      expect(tester.widget<Text>(flowing).maxLines, 2);
+      expect(tester.widget<Text>(flowing).style?.color, AppColors.error);
+      final card = tester.getRect(find.byType(PersistentDisplayCard));
+      final lines = tester.getRect(flowing);
+      expect(lines.height, greaterThan(line * 1.5), reason: 'two lines');
+      expect(lines.top, greaterThan(card.top));
+      expect(lines.bottom, lessThan(card.bottom));
+      expect(tester.getRect(badge('x = −4')).top, greaterThanOrEqualTo(lines.top),
+          reason: 'the values are in the line');
       expect(tester.takeException(), isNull);
     });
 
@@ -805,7 +862,7 @@ void main() {
       tester.platformDispatcher.textScaleFactorTestValue = 1.3; // of which the app takes 1.15
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       final (_, notifier) = await openScientific(tester, size: const Size(360, 640));
-      notifier.pasteText('x÷y÷z');
+      notifier.pasteText('√(x)÷y÷z');
       await settle(tester);
       Future<void> evaluateWith(Map<String, String> values) async {
         unawaited(notifier.evaluateWith(
@@ -831,20 +888,33 @@ void main() {
       expect(values.top, greaterThan(card.top));
       expect(result.bottom, lessThan(card.bottom));
 
+      Finder inBar(Finder what) => find.descendant(of: find.byType(PersistentDisplayCard), matching: what);
+
+      // A message of one line, below the values.
       await evaluateWith(<String, String>{'x': '1', 'y': '0', 'z': '7'});
       final failed = tester.getRect(badge('x = 1, y = 0, z = 7'));
-      final message = tester.getRect(
-        find.descendant(of: find.byType(PersistentDisplayCard), matching: find.textContaining('Division by zero')),
-      );
-      expect(message.top, greaterThan(card.top));
+      final short = inBar(find.text('Division by zero'));
+      final message = tester.getRect(short);
+      expect(failed.top, greaterThan(card.top));
+      expect(message.top, greaterThanOrEqualTo(failed.bottom));
       expect(message.bottom, lessThan(card.bottom));
-      expect(failed.bottom, lessThanOrEqualTo(message.bottom));
+      expect(failed.height, moreOrLessEquals(values.height, epsilon: 0.01));
+      expect(tester.widget<Text>(short).style?.fontSize, moreOrLessEquals(12 * 1.15),
+          reason: 'the message is enlarged');
+
+      // A message of two lines, with the values in the first.
+      await evaluateWith(<String, String>{'x': '−4', 'y': '3', 'z': '7'});
+      final inLine = tester.getRect(badge('x = −4, y = 3, z = 7'));
+      final long = inBar(find.textContaining('Square root of a negative number'));
+      final lines = tester.getRect(long);
+      expect(lines.top, greaterThan(card.top));
+      expect(lines.bottom, lessThan(card.bottom));
+      expect(lines.height, greaterThan(message.height * 1.5));
       // The badge is a widget in a line of text here, and such a widget is
       // enlarged with the text: it must not come out larger than elsewhere.
-      expect(failed.height, moreOrLessEquals(values.height, epsilon: 0.01));
-      final shown = find.descendant(of: find.byType(PersistentDisplayCard), matching: find.textContaining('Division'));
-      expect(tester.widget<Text>(shown).style?.fontSize, moreOrLessEquals(12 * 1.15),
-          reason: 'the message is enlarged');
+      expect(inLine.height, moreOrLessEquals(values.height, epsilon: 0.01));
+      expect(tester.widget<Text>(long).style?.fontSize, moreOrLessEquals(12 * 1.15),
+          reason: 'and the message is enlarged once');
       expect(tester.takeException(), isNull);
     });
 
