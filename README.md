@@ -535,7 +535,7 @@ On CI, with the code as it is in this commit:
   [Checked against references](#checked-against-references)).
 - The release APKs build, and `apksigner` accepts them.
 - On an Android 14 (API 34) x86_64 emulator at 1080×2400 the release APK
-  starts cold in about 3 s, computes typed input, `Ans` and `5000!`, lays
+  starts cold in 2 to 3.5 s, computes typed input, `Ans` and `5000!`, lays
   out in landscape, shows all five tabs with the display folded into its bar
   on Lab, Convert and History, opens the folded display on a tap, and still
   has its history after being force-stopped and restarted. On the scientific
