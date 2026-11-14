@@ -4,6 +4,8 @@ import 'package:modern_scientific_calculator/data/local_db/draft_state_store.dar
 import 'package:modern_scientific_calculator/data/repositories/calculator_repository.dart';
 import 'package:modern_scientific_calculator/domain/editor/calc_key.dart';
 import 'package:modern_scientific_calculator/domain/editor/math_print_controller.dart';
+import 'package:modern_scientific_calculator/domain/math_engine.dart';
+import 'package:modern_scientific_calculator/domain/models/calc_value_codec.dart';
 import 'package:modern_scientific_calculator/domain/models/editor_node.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_notifier.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_ui_state.dart';
@@ -264,5 +266,211 @@ void main() {
     expect(calculator.expressionText(), '√(2)');
     expect(state().inputPhase, InputPhase.editing);
     expect(state().rootSequence.children.single, isA<RootNode>());
+  });
+
+  group('CALC', () {
+    const x = AtomKey('x', AtomKind.variable);
+    const y = AtomKey('y', AtomKind.variable);
+    String number(String text) => CalcValueCodec.encode(MathEngine.evaluateText(text).value);
+
+    test('asks for the variables of the expression', () {
+      type(<CalcKey>[x, const TemplateKey(TemplateKind.square), op('+'), digit('3'), y, op('−'), x]);
+      expect(calculator.freeVariables(), <String>['x', 'y']);
+      type(<CalcKey>[const ClearKey(), digit('2'), op('+'), digit('3')]);
+      expect(calculator.freeVariables(), isEmpty);
+    });
+
+    test('evaluates with the given values and leaves everything else as it was', () async {
+      type(<CalcKey>[digit('7')]);
+      await calculator.evaluate();
+      calculator.storeAnswerIn('x');
+      await idle();
+      final historyBefore = container.read(historyProvider).entries.length;
+      type(<CalcKey>[const ClearKey(), x, const TemplateKey(TemplateKind.square), op('+'), digit('3'), y]);
+      await idle();
+      expect(state().livePreviewPrimary, '', reason: 'y has no value yet, so there is nothing to preview');
+      final expression = calculator.expressionText();
+      final caret = state().cursorPath;
+
+      await calculator.evaluateWith(<String, String>{'x': number('5'), 'y': number('2')}, note: 'x = 5, y = 2');
+      expect(state().livePreviewPrimary, '31');
+      expect(state().substitution, 'x = 5, y = 2');
+      // The formula is still being edited, with the caret where it was.
+      expect(state().inputPhase, InputPhase.editing);
+      expect(calculator.expressionText(), expression);
+      expect(state().cursorPath, caret);
+      // Nothing was stored, and nothing went onto the tape.
+      expect(state().variables['x'], '7');
+      expect(state().variables['y'], isNull);
+      expect(state().variables['Ans'], '7');
+      await idle();
+      expect(container.read(historyProvider).entries, hasLength(historyBefore));
+
+      // Again, with other values.
+      await calculator.evaluateWith(<String, String>{'x': number('1/2'), 'y': number('−1')}, note: 'x = 1/2, y = −1');
+      expect(state().livePreviewPrimary, '-2.75');
+      expect(state().livePreviewSecondary, '-11/4');
+      expect(state().substitution, 'x = 1/2, y = −1');
+      expect(calculator.expressionText(), expression);
+    });
+
+    test('the result goes when the expression changes, and = works as ever', () async {
+      type(<CalcKey>[digit('2')]);
+      await calculator.evaluate();
+      calculator.storeAnswerIn('x');
+      type(<CalcKey>[const ClearKey(), x, op('+'), digit('1')]);
+      await calculator.evaluateWith(<String, String>{'x': number('9')}, note: 'x = 9');
+      expect(state().livePreviewPrimary, '10');
+      // Moving the caret keeps it.
+      type(<CalcKey>[const MoveKey(CursorDirection.left)]);
+      await idle();
+      expect(state().substitution, 'x = 9');
+      expect(state().livePreviewPrimary, '10');
+      // Typing brings the preview with the stored value back.
+      type(<CalcKey>[digit('0')]);
+      await idle();
+      expect(state().substitution, isNull);
+      expect(calculator.expressionText(), 'x+01');
+      expect(state().livePreviewPrimary, '3');
+
+      await calculator.evaluateWith(<String, String>{'x': number('9')}, note: 'x = 9');
+      await calculator.evaluate();
+      expect(state().inputPhase, InputPhase.committedResult);
+      expect(state().substitution, isNull);
+      expect(state().livePreviewPrimary, '3', reason: '= uses the stored x');
+    });
+
+    test('values that fail leave the line open for the next ones', () async {
+      type(<CalcKey>[digit('1'), op('÷'), x]);
+      await idle();
+      final expression = calculator.expressionText();
+      await calculator.evaluateWith(<String, String>{'x': number('0')}, note: 'x = 0');
+      expect(state().errorMessage, isNotNull);
+      expect(state().substitution, 'x = 0');
+      expect(state().inputPhase, InputPhase.editing, reason: 'unlike after =, the line is not locked');
+      expect(calculator.expressionText(), expression);
+
+      await calculator.evaluateWith(<String, String>{'x': number('4')}, note: 'x = 4');
+      expect(state().errorMessage, isNull);
+      expect(state().livePreviewPrimary, '0.25');
+
+      // A key after a failure continues the formula and drops the message.
+      await calculator.evaluateWith(<String, String>{'x': number('0')}, note: 'x = 0');
+      type(<CalcKey>[op('+'), digit('2')]);
+      expect(state().errorMessage, isNull);
+      expect(state().substitution, isNull);
+      expect(calculator.expressionText(), '$expression+2');
+    });
+
+    test('= on a variable without a value points to CALC, which then works on that line', () async {
+      type(<CalcKey>[x, op('×'), digit('3')]);
+      await calculator.evaluate();
+      expect(state().inputPhase, InputPhase.errorLocked);
+      expect(state().errorMessage, 'Variable x has no value${CalculatorNotifier.calcHint}');
+      expect(calculator.freeVariables(), <String>['x']);
+
+      await calculator.evaluateWith(<String, String>{'x': number('4')}, note: 'x = 4');
+      expect(state().inputPhase, InputPhase.editing);
+      expect(state().errorMessage, isNull);
+      expect(state().livePreviewPrimary, '12');
+      expect(calculator.expressionText(), 'x×3');
+    });
+
+    test('works on a committed line and keeps the formula', () async {
+      type(<CalcKey>[digit('5')]);
+      await calculator.evaluate();
+      calculator.storeAnswerIn('x');
+      type(<CalcKey>[const ClearKey(), x, op('×'), digit('3')]);
+      await calculator.evaluate();
+      expect(state().inputPhase, InputPhase.committedResult);
+      expect(state().livePreviewPrimary, '15');
+      await calculator.evaluateWith(<String, String>{'x': number('4')}, note: 'x = 4');
+      expect(state().inputPhase, InputPhase.editing);
+      expect(state().livePreviewPrimary, '12');
+      expect(calculator.expressionText(), 'x×3');
+      expect(state().variables['Ans'], '15', reason: 'Ans is still the result of =');
+    });
+
+    test('M+ adds what CALC has on display', () async {
+      type(<CalcKey>[x, op('×'), digit('3')]);
+      await calculator.evaluateWith(<String, String>{'x': number('4')}, note: 'x = 4');
+      await calculator.memoryAdd();
+      expect(state().variables['M'], '12');
+    });
+  });
+
+  group('ENG', () {
+    test('rewrites the result on display and back', () async {
+      type(<CalcKey>[digit('1'), digit('2'), digit('3'), digit('4'), digit('5'), op('×'), digit('6'), digit('7')]);
+      await calculator.evaluate();
+      expect(state().livePreviewPrimary, '827115');
+      calculator.toggleEngineering();
+      expect(state().isEngineering, isTrue);
+      expect(state().livePreviewPrimary, '827.115e3');
+      expect(state().livePreviewSecondary, '827115');
+      calculator.toggleEngineering();
+      expect(state().isEngineering, isFalse);
+      expect(state().livePreviewPrimary, '827115');
+      expect(state().livePreviewSecondary, isNull);
+    });
+
+    test('applies to the preview, to the next result and to what CALC shows', () async {
+      calculator.toggleEngineering();
+      type(<CalcKey>[digit('5'), digit('0'), op('×'), digit('3'), digit('0'), digit('0')]);
+      await idle();
+      expect(state().livePreviewPrimary, '15e3');
+      await calculator.evaluate();
+      expect(state().livePreviewPrimary, '15e3');
+      expect(state().variables['Ans'], '15000', reason: 'the value is not touched by the notation');
+
+      type(<CalcKey>[const ClearKey(), const AtomKey('x', AtomKind.variable), op('×'), digit('2')]);
+      await calculator.evaluateWith(
+        <String, String>{'x': CalcValueCodec.encode(MathEngine.evaluateText('2500').value)},
+        note: 'x = 2500',
+      );
+      expect(state().livePreviewPrimary, '5e3');
+      calculator.toggleEngineering();
+      expect(state().livePreviewPrimary, '5000');
+      expect(state().substitution, 'x = 2500');
+    });
+
+    test('is remembered with the settings', () {
+      final repository = InMemoryCalculatorRepository();
+      container = create(overrides: <Override>[repositoryProvider.overrideWithValue(repository)]);
+      calculator = container.read(calculatorProvider.notifier);
+      expect(state().isEngineering, isFalse);
+      calculator.toggleEngineering();
+      expect(repository.loadSettings().engineeringNotation, isTrue);
+
+      final restarted = create(overrides: <Override>[repositoryProvider.overrideWithValue(repository)]);
+      expect(restarted.read(calculatorProvider).isEngineering, isTrue);
+    });
+  });
+
+  test('Rand has no live preview: the number comes with =', () async {
+    type(<CalcKey>[const AtomKey('Rand', AtomKind.constant), op('×'), digit('6')]);
+    await idle();
+    expect(state().livePreviewPrimary, '');
+    await calculator.evaluate();
+    final value = double.parse(state().livePreviewPrimary);
+    expect(value, inInclusiveRange(0, 6));
+    expect(state().inputPhase, InputPhase.committedResult);
+  });
+
+  test('typing the angle of a polar form switches to complex mode', () async {
+    expect(state().isComplexEnabled, isFalse);
+    type(<CalcKey>[digit('2'), op('∠'), digit('9'), digit('0')]);
+    expect(state().isComplexEnabled, isTrue);
+    await calculator.evaluate();
+    expect(state().livePreviewPrimary, '0 + 2i');
+  });
+
+  test('releaseShift lets INV and HYP go', () {
+    calculator
+      ..toggleInverse()
+      ..toggleHyperbolic();
+    expect(state().isInverseActive && state().isHyperbolicActive, isTrue);
+    calculator.releaseShift();
+    expect(state().isInverseActive || state().isHyperbolicActive, isFalse);
   });
 }

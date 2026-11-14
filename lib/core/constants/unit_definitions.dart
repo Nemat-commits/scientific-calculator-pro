@@ -8,11 +8,15 @@ library;
 
 /// One convertible unit.
 final class UnitDef {
-  const UnitDef(this.id, this.symbol, this.name, this.factor, {this.offset = '0'});
+  const UnitDef(this.id, this.symbol, this.name, this.factor, {this.offset = '0', this.step});
 
   final String id;
   final String symbol;
   final String name;
+
+  /// How the unit is built from the next smaller one (`1000 kB`), for units
+  /// whose name alone does not say it.
+  final String? step;
 
   /// Size of the unit in base units: a decimal, a fraction `a/b`, or an
   /// expression involving `π`.
@@ -24,10 +28,13 @@ final class UnitDef {
 
 /// A group of units that measure the same quantity.
 final class UnitCategory {
-  const UnitCategory(this.id, this.name, this.baseSymbol, this.units);
+  const UnitCategory(this.id, this.name, this.baseSymbol, this.units, {this.note});
 
   final String id;
   final String name;
+
+  /// What a reader has to know about the units of this category, if anything.
+  final String? note;
 
   /// Symbol of the unit whose factor is 1.
   final String baseSymbol;
@@ -43,6 +50,10 @@ final class UnitCategory {
 
 /// The 12 unit categories.
 abstract final class UnitDefinitions {
+  /// Shown above the data units.
+  static const String dataNote = 'kB · MB · GB · TB count in steps of 1000 (SI: drives, networks). '
+      'KiB · MiB · GiB · TiB count in steps of 1024 (memory; what Windows labels "MB").';
+
   static const List<UnitCategory> categories = <UnitCategory>[
     UnitCategory('length', 'Length', 'm', <UnitDef>[
       UnitDef('nm', 'nm', 'Nanometre', '1e-9'),
@@ -125,22 +136,22 @@ abstract final class UnitDefinitions {
       UnitDef('mo', 'mo', 'Month (1/12 Julian year)', '2629800'),
       UnitDef('yr', 'yr', 'Julian year', '31557600'),
     ]),
-    UnitCategory('data', 'Data', 'B', <UnitDef>[
-      // Two families that are easily taken for each other. The SI prefixes
-      // are powers of 1000 (1 MB = 1000 kB: drives, networks), the IEC
-      // prefixes powers of 1024 (1 MiB = 1024 KiB: memory, and what many
-      // systems show as "MB"). Each name says which one it is, and the
-      // twins stand next to each other.
+    // Two families that are easily taken for each other. The SI prefixes are
+    // powers of 1000 (1 MB = 1000 kB: drives, networks), the IEC prefixes
+    // powers of 1024 (1 MiB = 1024 KiB: memory, and what many systems show
+    // as "MB"). Each row says which one it is, the twins stand next to each
+    // other, and the note is shown above the list.
+    UnitCategory('data', 'Data', 'B', note: dataNote, <UnitDef>[
       UnitDef('bit', 'bit', 'Bit', '0.125'),
       UnitDef('b', 'B', 'Byte', '1'),
-      UnitDef('kb', 'kB', 'Kilobyte · 1000 B', '1000'),
-      UnitDef('kib', 'KiB', 'Kibibyte · 1024 B', '1024'),
-      UnitDef('mb', 'MB', 'Megabyte · 1000 kB', '1e6'),
-      UnitDef('mib', 'MiB', 'Mebibyte · 1024 KiB', '1048576'),
-      UnitDef('gb', 'GB', 'Gigabyte · 1000 MB', '1e9'),
-      UnitDef('gib', 'GiB', 'Gibibyte · 1024 MiB', '1073741824'),
-      UnitDef('tb', 'TB', 'Terabyte · 1000 GB', '1e12'),
-      UnitDef('tib', 'TiB', 'Tebibyte · 1024 GiB', '1099511627776'),
+      UnitDef('kb', 'kB', 'Kilobyte', '1000', step: '1000 B'),
+      UnitDef('kib', 'KiB', 'Kibibyte', '1024', step: '1024 B'),
+      UnitDef('mb', 'MB', 'Megabyte', '1e6', step: '1000 kB'),
+      UnitDef('mib', 'MiB', 'Mebibyte', '1048576', step: '1024 KiB'),
+      UnitDef('gb', 'GB', 'Gigabyte', '1e9', step: '1000 MB'),
+      UnitDef('gib', 'GiB', 'Gibibyte', '1073741824', step: '1024 MiB'),
+      UnitDef('tb', 'TB', 'Terabyte', '1e12', step: '1000 GB'),
+      UnitDef('tib', 'TiB', 'Tebibyte', '1099511627776', step: '1024 GiB'),
     ]),
     UnitCategory('pressure', 'Pressure', 'Pa', <UnitDef>[
       UnitDef('pa', 'Pa', 'Pascal', '1'),

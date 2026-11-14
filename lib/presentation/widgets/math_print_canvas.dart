@@ -152,9 +152,13 @@ class MathLayoutEngine {
       final node = children[i];
       final child = switch (node) {
         AtomNode() => _atom(node, i == 0 ? null : children[i - 1], f),
-        FractionNode(:final numerator, :final denominator) => _FractionBox(
-            _sequence(numerator, _scaled(f, 0.85), depth + 1),
-            _sequence(denominator, _scaled(f, 0.85), depth + 1),
+        FractionNode(:final whole, :final numerator, :final denominator) => _mixed(
+            whole == null ? null : _sequence(whole, f, depth + 1),
+            _FractionBox(
+              _sequence(numerator, _scaled(f, 0.85), depth + 1),
+              _sequence(denominator, _scaled(f, 0.85), depth + 1),
+              f,
+            ),
             f,
           ),
         PowerNode(:final exponent) =>
@@ -165,14 +169,29 @@ class MathLayoutEngine {
             f,
           ),
         FunctionCallEditorNode(:final functionName, :final argSlots) => _call(functionName, argSlots, f, depth),
-        CalculusIntegralNode(:final lowerBound, :final upperBound, :final integrand, :final dummyVariable) =>
-          _IntegralBox(
-            _sequence(lowerBound, _scaled(f, 0.62), depth + 1),
-            _sequence(upperBound, _scaled(f, 0.62), depth + 1),
-            _sequence(integrand, f, depth + 1),
-            _glyphs('d$dummyVariable', f, AppColors.mathFunction, padLeft: f * 0.12),
-            f,
-          ),
+        CalculusIntegralNode(
+          :final lowerBound,
+          :final upperBound,
+          :final integrand,
+          :final dummyVariable,
+          :final operator
+        ) =>
+          operator == BoundedOperator.integral
+              ? _IntegralBox(
+                  _sequence(lowerBound, _scaled(f, 0.62), depth + 1),
+                  _sequence(upperBound, _scaled(f, 0.62), depth + 1),
+                  _sequence(integrand, f, depth + 1),
+                  _glyphs('d$dummyVariable', f, AppColors.mathFunction, padLeft: f * 0.12),
+                  f,
+                )
+              : _SeriesBox(
+                  _glyphs('$dummyVariable=', _scaled(f, 0.62), AppColors.mathFunction),
+                  _sequence(lowerBound, _scaled(f, 0.62), depth + 1),
+                  _sequence(upperBound, _scaled(f, 0.62), depth + 1),
+                  _sequence(integrand, f, depth + 1),
+                  f,
+                  product: operator == BoundedOperator.product,
+                ),
         DerivativeEditorNode(:final body, :final evalPoint, :final dummyVariable) => _DerivativeBox(
             _glyphs('d', _scaled(f, 0.7), AppColors.mathFunction),
             _glyphs('d$dummyVariable', _scaled(f, 0.7), AppColors.mathFunction),
@@ -199,8 +218,19 @@ class MathLayoutEngine {
     return box;
   }
 
+  /// A fraction, with the whole part of a mixed fraction in front of it.
+  _Box _mixed(_SeqBox? whole, _FractionBox fraction, double f) {
+    if (whole == null) return fraction;
+    return _GroupBox()
+      ..put(whole, 0, 0)
+      ..put(fraction, whole.w + f * 0.02, 0)
+      ..close();
+  }
+
   _Box _atom(AtomNode node, EditorNode? before, double f) {
     final text = node.text;
+    // No bundled font has the angle sign: it is drawn.
+    if (text == '∠') return _AngleBox(f);
     switch (node.kind) {
       case AtomKind.digit:
         if (text == 'E') {
@@ -608,6 +638,87 @@ class _IntegralBox extends _GroupBox {
       ..cubicTo(cx - f * 0.04, b + f * 0.02, cx - f * 0.17, b + f * 0.02, cx - f * 0.19, b - f * 0.09);
     canvas.drawPath(path, _stroke(AppColors.mathOperator, math.max(1.2, f * 0.065)));
     super.paint(canvas);
+  }
+}
+
+/// `Σ` or `Π` with the first value of the variable below the sign, the last
+/// one above it and the term in parentheses behind it.
+class _SeriesBox extends _GroupBox {
+  _SeriesBox(_TextBox label, _SeqBox lower, _SeqBox upper, _SeqBox term, this.f, {required this.product}) {
+    final gap = f * 0.07;
+    // The sign grows with a tall term (a fraction), within limits.
+    final signHeight = math.min(f * 1.9, math.max(f * 1.15, (term.asc + term.desc) * 0.78));
+    signWidth = signHeight * 0.7;
+    top = _axis(f) + signHeight / 2;
+    bottom = signHeight / 2 - _axis(f);
+    final below = label.w + lower.w;
+    final column = math.max(signWidth, math.max(upper.w, below));
+    centre = column / 2;
+    put(upper, centre - upper.w / 2, -(top + gap + upper.desc * 0.6));
+    final drop = bottom + gap + math.max(label.asc, lower.asc) * 0.82;
+    put(label, centre - below / 2, drop);
+    put(lower, centre - below / 2 + label.w, drop);
+    put(_ParenBox(term, f), column + f * 0.08, 0);
+    close(extraRight: f * 0.04);
+    asc = math.max(asc, top + f * 0.03);
+    desc = math.max(desc, bottom + f * 0.03);
+  }
+
+  final double f;
+  final bool product;
+  late final double signWidth;
+  late final double centre;
+  late final double top;
+  late final double bottom;
+
+  @override
+  void paint(Canvas canvas) {
+    final left = x + centre - signWidth / 2, right = x + centre + signWidth / 2;
+    final t = y - top, b = y + bottom;
+    final path = Path();
+    if (product) {
+      final inset = signWidth * 0.17;
+      path
+        ..moveTo(left, t)
+        ..lineTo(right, t)
+        ..moveTo(left + inset, t)
+        ..lineTo(left + inset, b)
+        ..moveTo(right - inset, t)
+        ..lineTo(right - inset, b);
+    } else {
+      final serif = f * 0.13;
+      path
+        ..moveTo(right, t + serif)
+        ..lineTo(right, t)
+        ..lineTo(left, t)
+        ..lineTo(left + signWidth * 0.52, (t + b) / 2)
+        ..lineTo(left, b)
+        ..lineTo(right, b)
+        ..lineTo(right, b - serif);
+    }
+    canvas.drawPath(path, _stroke(AppColors.mathOperator, math.max(1.2, f * 0.065)));
+    super.paint(canvas);
+  }
+}
+
+/// The angle sign of the polar form `r∠θ`.
+class _AngleBox extends _Box {
+  _AngleBox(this.f) {
+    w = f * 0.86;
+    asc = f * 0.76;
+    desc = f * 0.22;
+  }
+
+  final double f;
+
+  @override
+  void paint(Canvas canvas) {
+    final left = x + f * 0.16, right = x + w - f * 0.14;
+    final path = Path()
+      ..moveTo(right - f * 0.06, y - f * 0.56)
+      ..lineTo(left, y - f * 0.02)
+      ..lineTo(right, y - f * 0.02);
+    canvas.drawPath(path, _stroke(AppColors.mathOperator, math.max(1.2, f * 0.07)));
   }
 }
 

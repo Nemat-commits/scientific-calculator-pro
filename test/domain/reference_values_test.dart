@@ -139,7 +139,7 @@ void main() {
       expect(shown('1', 'mb', 'kib'), '976.5625');
       for (final unit in data.units) {
         if (unit.id == 'bit' || unit.id == 'b') continue;
-        expect(unit.name, contains(unit.id.endsWith('ib') ? '1024' : '1000'), reason: unit.id);
+        expect(unit.step, startsWith(unit.id.endsWith('ib') ? '1024 ' : '1000 '), reason: unit.id);
       }
     });
   });

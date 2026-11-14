@@ -19,6 +19,9 @@ abstract final class NumberFormatter {
   /// denominator) to be offered as the secondary read-out.
   static const int maxFractionDigits = 24;
 
+  /// Digits per part in the short form of a complex number.
+  static const int complexShortDigits = 10;
+
   /// Formats [x] with at most [prec] significant digits (half-even).
   ///
   /// Whole numbers are always printed as plain integers while they fit
@@ -104,20 +107,33 @@ abstract final class NumberFormatter {
     }
   }
 
-  /// Alternative read-out: the exact fraction of a rational result, or the
-  /// engineering form of a result shown in scientific notation.
-  static String? formatSecondary(CalcValue v, {int prec = DISP_PREC}) {
+  /// Alternative read-out: the exact fraction of a rational result, the
+  /// engineering form of a result shown in scientific notation, or a complex
+  /// number rounded to [complexShortDigits] digits per part. When the
+  /// primary read-out is in another [notation] than the automatic one, the
+  /// alternative of a number that is no fraction is its automatic form.
+  static String? formatSecondary(CalcValue v, {int prec = DISP_PREC, NotationMode notation = NotationMode.auto}) {
+    String? plainForm() {
+      final plain = formatValue(v, prec: prec);
+      return plain == formatValue(v, prec: prec, notation: notation) ? null : plain;
+    }
+
     switch (v) {
       case RationalVal(:final value):
-        if (value.denominator == BigInt.one) return null;
+        if (value.denominator == BigInt.one) return notation == NotationMode.auto ? null : plainForm();
         final used = Dec.digitCount(value.numerator) + Dec.digitCount(value.denominator);
         return used <= maxFractionDigits ? formatFraction(value) : null;
       case DecimalVal(:final value):
+        if (notation != NotationMode.auto) return plainForm();
         final primary = formatDec(value, prec: prec);
         if (!primary.contains('e')) return null;
         final eng = formatDec(value, prec: prec, notation: NotationMode.engineering);
         return eng == primary ? null : eng;
-      case ComplexVal() || BitwiseVal() || MatrixVal():
+      case ComplexVal():
+        // Two long decimals side by side are hard to read: the short form.
+        final short = formatValue(v, prec: complexShortDigits, notation: notation);
+        return short == formatValue(v, prec: prec, notation: notation) ? null : short;
+      case BitwiseVal() || MatrixVal():
         return null;
     }
   }

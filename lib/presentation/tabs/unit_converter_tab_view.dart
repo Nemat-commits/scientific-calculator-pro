@@ -112,8 +112,18 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
             ),
             Expanded(
               flex: 4,
-              child: Text(
-                unit.name,
+              child: Text.rich(
+                TextSpan(
+                  children: <InlineSpan>[
+                    // The step comes first: on a narrow screen the end is cut.
+                    if (unit.step != null)
+                      TextSpan(
+                        text: '${unit.step}  ',
+                        style: AppTypography.mono(size: 11.5, color: AppColors.textSecondary),
+                      ),
+                    TextSpan(text: unit.name),
+                  ],
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.ui(size: 11.5, color: AppColors.textMuted),
@@ -252,7 +262,17 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
                       )
                     : ListView(
                         key: ValueKey<String>(_current.id),
-                        children: <Widget>[for (final unit in _current.units) _unitRow(unit, value)],
+                        children: <Widget>[
+                          if (_current.note != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                _current.note!,
+                                style: AppTypography.ui(size: 11.5, color: AppColors.textMuted),
+                              ),
+                            ),
+                          for (final unit in _current.units) _unitRow(unit, value),
+                        ],
                       ),
               ),
             ),

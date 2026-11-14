@@ -10,15 +10,17 @@ import '../../domain/models/editor_node.dart';
 import '../state/calculator_notifier.dart';
 import '../state/calculator_ui_state.dart';
 import '../widgets/calc_key_button.dart';
-import '../widgets/key_legend.dart';
+import '../widgets/function_row.dart';
+import '../widgets/shell_layout.dart';
 import '../widgets/utility_strip.dart';
 
 /// Tab 1: the 4 × 5 core keypad with the cursor & memory strip above it.
 ///
 /// `f(x)` at the start of the strip opens a row with the most used scientific
 /// keys, so that an everyday formula such as `2 × sin(45) + √16` can be typed
-/// without changing tabs.
-class StandardTabView extends ConsumerStatefulWidget {
+/// without changing tabs. Where the scientific grid is on screen next to this
+/// keypad, the row holds the functions that grid has no key for instead.
+class StandardTabView extends ConsumerWidget {
   const StandardTabView({super.key});
 
   /// `(` or `)` - whichever makes sense at the caret.
@@ -45,17 +47,11 @@ class StandardTabView extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<StandardTabView> createState() => _StandardTabViewState();
-}
-
-class _StandardTabViewState extends ConsumerState<StandardTabView> {
-  /// Whether the row of quick scientific keys is open.
-  bool _quickOpen = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(calculatorProvider.notifier);
     final openParentheses = ref.watch(calculatorProvider.select((s) => s.unclosedParenthesesCount));
+    // Beside the scientific grid the row offers what that grid has no key for.
+    final besideScientific = ShellLayout.isDualPane(context);
 
     Widget digit(String d) => CalcKeyButton(
           label: d,
@@ -69,132 +65,85 @@ class _StandardTabViewState extends ConsumerState<StandardTabView> {
           haptic: HapticPattern.medium,
           onPressed: () => notifier.press(AtomKey(symbol, AtomKind.binaryOp)),
         );
-    Widget quick(String name, CalcKey key, Widget Function(Color color) legend) => CalcKeyButton(
-          tone: KeyTone.function,
-          radius: 12,
-          semanticLabel: name,
-          onPressed: () => notifier.press(key),
-          child: legend(CalcKeyButton.foregroundOf(KeyTone.function)),
-        );
-    Widget function(String name) => quick(
-          name,
-          TemplateKey(TemplateKind.function, name: name),
-          (c) => KeyLegend(name, color: c, size: 15),
-        );
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final tight = constraints.maxHeight < 300;
         final gap = tight ? 5.0 : 8.0;
         final strip = (constraints.maxHeight * 0.115).clamp(26.0, 42.0);
-        return Column(
-          children: <Widget>[
-            SizedBox(
-              height: strip,
-              child: UtilityStrip(
-                leading: CalcKeyButton(
-                  label: 'f(x)',
-                  tone: _quickOpen ? KeyTone.active : KeyTone.function,
-                  fontSize: 13,
-                  radius: 12,
-                  semanticLabel: _quickOpen ? 'Hide the scientific keys' : 'Show the scientific keys',
-                  onPressed: () => setState(() => _quickOpen = !_quickOpen),
-                ),
-              ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: !_quickOpen
-                  ? const SizedBox(width: double.infinity)
-                  : Padding(
-                      padding: EdgeInsets.only(top: gap),
-                      child: SizedBox(
-                        height: strip * 1.12,
-                        child: KeyGrid(
-                          gap: 5,
-                          rows: <List<Widget>>[
-                            <Widget>[
-                              function('sin'),
-                              function('cos'),
-                              function('tan'),
-                              function('ln'),
-                              quick('square root', const TemplateKey(TemplateKind.squareRoot),
-                                  (c) => KeyLegend('√x', color: c, size: 15)),
-                              quick('square', const TemplateKey(TemplateKind.square),
-                                  (c) => KeyLegend('x', sup: '2', color: c, size: 15)),
-                              quick('power', const TemplateKey(TemplateKind.power),
-                                  (c) => KeyLegend('x', sup: 'y', color: c, size: 15)),
-                              quick('pi', const AtomKey('π', AtomKind.constant),
-                                  (c) => KeyLegend('π', color: c, size: 15)),
-                            ],
-                          ],
+        return FunctionRowToggle(
+          keys: besideScientific ? FunctionRow.further : FunctionRow.everyday,
+          rowHeight: strip * 1.12,
+          gap: gap,
+          showLabel: besideScientific ? 'Show more functions' : 'Show the scientific keys',
+          hideLabel: besideScientific ? 'Hide the extra functions' : 'Hide the scientific keys',
+          builder: (context, toggle, row, open) => Column(
+            children: <Widget>[
+              SizedBox(height: strip, child: UtilityStrip(leading: toggle)),
+              row,
+              SizedBox(height: gap),
+              Expanded(
+                child: KeyGrid(
+                  gap: gap,
+                  rows: <List<Widget>>[
+                    <Widget>[
+                      CalcKeyButton(
+                        label: 'AC',
+                        tone: KeyTone.danger,
+                        fontSize: 20,
+                        haptic: HapticPattern.heavy,
+                        semanticLabel: 'All clear',
+                        onPressed: () => notifier.press(const ClearKey()),
+                      ),
+                      _Badged(
+                        count: openParentheses,
+                        child: CalcKeyButton(
+                          label: '( )',
+                          tone: KeyTone.function,
+                          fontSize: 20,
+                          semanticLabel: 'Parenthesis',
+                          onPressed: () =>
+                              notifier.press(StandardTabView.smartParenthesis(ref.read(calculatorProvider))),
+                          onLongPress: () => notifier.press(const AtomKey('(', AtomKind.paren)),
                         ),
                       ),
-                    ),
-            ),
-            SizedBox(height: gap),
-            Expanded(
-              child: KeyGrid(
-                gap: gap,
-                rows: <List<Widget>>[
-                  <Widget>[
-                    CalcKeyButton(
-                      label: 'AC',
-                      tone: KeyTone.danger,
-                      fontSize: 20,
-                      haptic: HapticPattern.heavy,
-                      semanticLabel: 'All clear',
-                      onPressed: () => notifier.press(const ClearKey()),
-                    ),
-                    _Badged(
-                      count: openParentheses,
-                      child: CalcKeyButton(
-                        label: '( )',
+                      CalcKeyButton(
+                        label: '%',
                         tone: KeyTone.function,
                         fontSize: 20,
-                        semanticLabel: 'Parenthesis',
-                        onPressed: () => notifier.press(StandardTabView.smartParenthesis(ref.read(calculatorProvider))),
-                        onLongPress: () => notifier.press(const AtomKey('(', AtomKind.paren)),
+                        semanticLabel: 'Percent',
+                        onPressed: () => notifier.press(const AtomKey('%', AtomKind.unaryPostfix)),
                       ),
-                    ),
-                    CalcKeyButton(
-                      label: '%',
-                      tone: KeyTone.function,
-                      fontSize: 20,
-                      semanticLabel: 'Percent',
-                      onPressed: () => notifier.press(const AtomKey('%', AtomKind.unaryPostfix)),
-                    ),
-                    operator('÷'),
+                      operator('÷'),
+                    ],
+                    <Widget>[digit('7'), digit('8'), digit('9'), operator('×')],
+                    <Widget>[digit('4'), digit('5'), digit('6'), operator('−')],
+                    <Widget>[digit('1'), digit('2'), digit('3'), operator('+')],
+                    <Widget>[
+                      digit('0'),
+                      digit('.'),
+                      CalcKeyButton(
+                        label: '⌫',
+                        tone: KeyTone.danger,
+                        fontSize: 22,
+                        repeats: true,
+                        semanticLabel: 'Backspace',
+                        onPressed: () => notifier.press(const BackspaceKey()),
+                      ),
+                      CalcKeyButton(
+                        label: '=',
+                        tone: KeyTone.equals,
+                        fontSize: 28,
+                        haptic: HapticPattern.medium,
+                        semanticLabel: 'Equals',
+                        onPressed: () => notifier.press(const EvaluateKey()),
+                      ),
+                    ],
                   ],
-                  <Widget>[digit('7'), digit('8'), digit('9'), operator('×')],
-                  <Widget>[digit('4'), digit('5'), digit('6'), operator('−')],
-                  <Widget>[digit('1'), digit('2'), digit('3'), operator('+')],
-                  <Widget>[
-                    digit('0'),
-                    digit('.'),
-                    CalcKeyButton(
-                      label: '⌫',
-                      tone: KeyTone.danger,
-                      fontSize: 22,
-                      repeats: true,
-                      semanticLabel: 'Backspace',
-                      onPressed: () => notifier.press(const BackspaceKey()),
-                    ),
-                    CalcKeyButton(
-                      label: '=',
-                      tone: KeyTone.equals,
-                      fontSize: 28,
-                      haptic: HapticPattern.medium,
-                      semanticLabel: 'Equals',
-                      onPressed: () => notifier.press(const EvaluateKey()),
-                    ),
-                  ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );

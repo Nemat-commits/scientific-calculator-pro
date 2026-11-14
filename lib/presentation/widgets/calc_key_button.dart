@@ -26,8 +26,14 @@ enum KeyTone {
   /// `=`
   equals,
 
-  /// A toggle that is currently on (INV, HYP).
+  /// A toggle that is currently on (HYP).
   active,
+
+  /// The shift key `INV`.
+  shift,
+
+  /// The shift key while it is on.
+  shiftActive,
 }
 
 /// A calculator key: scales to 0.94× within 60 ms while pressed and fires a
@@ -84,6 +90,8 @@ class CalcKeyButton extends ConsumerStatefulWidget {
         KeyTone.danger => AppColors.keyDangerText,
         KeyTone.equals => AppColors.keyEqualsText,
         KeyTone.active => AppColors.keyActiveText,
+        KeyTone.shift => AppColors.keyShiftText,
+        KeyTone.shiftActive => AppColors.keyShiftActiveText,
       };
 
   @override
@@ -134,7 +142,18 @@ class _CalcKeyButtonState extends ConsumerState<CalcKeyButton> {
         KeyTone.danger => AppColors.keyDanger,
         KeyTone.equals => AppColors.keyEqualsStart,
         KeyTone.active => AppColors.keyActive,
+        KeyTone.shift => AppColors.keyShift,
+        KeyTone.shiftActive => AppColors.keyShiftActive,
       };
+
+  Color get _edge {
+    if (widget.emphasised) return AppColors.accent;
+    return switch (widget.tone) {
+      KeyTone.shift => AppColors.keyShiftEdge,
+      KeyTone.shiftActive => AppColors.keyShiftActive,
+      _ => AppColors.keyEdge,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +168,9 @@ class _CalcKeyButtonState extends ConsumerState<CalcKeyButton> {
           textAlign: TextAlign.center,
           style: AppTypography.mono(
             size: widget.fontSize,
-            weight: widget.tone == KeyTone.equals ? AppWeight.strong : AppWeight.medium,
+            weight: widget.tone == KeyTone.equals || widget.tone == KeyTone.shift || widget.tone == KeyTone.shiftActive
+                ? AppWeight.strong
+                : AppWeight.medium,
             color: foreground,
             height: 1.1,
           ),
@@ -194,7 +215,7 @@ class _CalcKeyButtonState extends ConsumerState<CalcKeyButton> {
                         )
                       : null,
                   borderRadius: radius,
-                  border: Border.all(color: widget.emphasised ? AppColors.accent : AppColors.keyEdge),
+                  border: Border.all(color: _edge),
                 ),
                 child: corner == null
                     ? _ScaledLegend(child: legend)

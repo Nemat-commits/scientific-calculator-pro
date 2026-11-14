@@ -43,6 +43,18 @@ abstract final class AppColors {
   static const Color keyActive = Color(0xFF0C4A6E);
   static const Color keyActiveText = Color(0xFF7DD3FC);
 
+  /// The shift key `INV`: it has a colour of its own, and so has everything
+  /// it leads to - the small second legends on the keys while it is off, the
+  /// keys it has changed while it is on.
+  static const Color keyShift = Color(0xFF2A210D);
+  static const Color keyShiftText = Color(0xFFFBBF24);
+  static const Color keyShiftEdge = Color(0x66FBBF24);
+  static const Color keyShiftActive = Color(0xFFFBBF24);
+  static const Color keyShiftActiveText = Color(0xFF1F1602);
+
+  /// Second legend in the corner of a key (what `INV` turns it into).
+  static const Color keyShiftHint = Color(0xFFB08A2E);
+
   /// Legend of a key that draws attention to itself (MC / MR while the
   /// memory holds a value).
   static const Color keyEmphasisText = Color(0xFFE2E8F0);

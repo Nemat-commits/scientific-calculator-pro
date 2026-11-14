@@ -77,8 +77,19 @@ class _PersistentDisplayCardState extends ConsumerState<PersistentDisplayCard> {
     });
   }
 
+  /// Whether the result row holds a result (of `=` or of `CALC`) rather than
+  /// the preview of what is being typed.
+  static bool _showsResult(CalculatorUiState state) =>
+      state.inputPhase == InputPhase.committedResult ||
+      (state.inputPhase == InputPhase.editing && state.substitution != null);
+
+  /// Whether the result row holds an error: of `=`, which locks the line, or
+  /// of `CALC`, which leaves it open for the next values.
+  static bool _showsError(CalculatorUiState state) =>
+      state.inputPhase == InputPhase.errorLocked || (state.substitution != null && state.errorMessage != null);
+
   Future<void> _copy(CalculatorUiState state) async {
-    final text = state.inputPhase == InputPhase.committedResult && state.livePreviewPrimary.isNotEmpty
+    final text = _showsResult(state) && state.livePreviewPrimary.isNotEmpty
         ? state.livePreviewPrimary
         : TreeToTokenLowerer.toDisplayText(state.rootSequence);
     if (text.isEmpty) return;
@@ -99,10 +110,13 @@ class _PersistentDisplayCardState extends ConsumerState<PersistentDisplayCard> {
     final notifier = ref.read(calculatorProvider.notifier);
     ref.listen<String>(calculatorProvider.select((s) => s.livePreviewPrimary), (_, __) => _swapped = false);
 
-    final committed = state.inputPhase == InputPhase.committedResult;
-    final failed = state.inputPhase == InputPhase.errorLocked;
+    final committed = _showsResult(state);
+    final failed = _showsError(state);
     final secondary = state.livePreviewSecondary;
-    final swap = _swapped && secondary != null;
+    // A complex number leads with its short form: both parts at full length
+    // do not fit the line at a readable size. A tap swaps the two as usual.
+    final shortFirst = secondary != null && state.livePreviewPrimary.endsWith('i');
+    final swap = secondary != null && (_swapped != shortFirst);
     final primaryText = swap ? secondary : state.livePreviewPrimary;
     final secondaryText = swap ? state.livePreviewPrimary : secondary;
 
@@ -245,9 +259,22 @@ List<Widget> _statusBadges(WidgetRef ref, CalculatorUiState state, String? notic
       },
       semanticLabel: 'Implied multiplication',
     ),
+    if (state.isEngineering)
+      StatusBadge(
+        'ENG',
+        highlighted: true,
+        semanticLabel: 'Engineering notation',
+        onTap: () {
+          notifier.toggleEngineering();
+          explain((now) => now.isEngineering ? ModeHints.engineering : ModeHints.normal);
+        },
+      ),
     if (state.isInverseActive) const StatusBadge('INV', highlighted: true),
     if (state.isHyperbolicActive) const StatusBadge('HYP', highlighted: true),
     if (state.hasMemory) const StatusBadge('M', highlighted: true),
+    // The values CALC evaluated the expression with.
+    if (state.substitution != null)
+      StatusBadge(state.substitution!, highlighted: true, semanticLabel: 'Evaluated with'),
     if (state.inputPhase == InputPhase.errorLocked) const StatusBadge('ERROR', danger: true),
     if (state.isEvaluatingHeavy) const _BusyDot(),
     if (notice != null) StatusBadge(notice, highlighted: true),
@@ -260,6 +287,8 @@ abstract final class ModeHints {
   static const String ti = 'TI / standard mode · 6 ÷ 2(1+2) = 9';
   static const String complex = 'Complex mode · √(−1) = i';
   static const String real = 'Real mode · √(−1) is a math error';
+  static const String engineering = 'Engineering notation · 12345 = 12.345 × 10³';
+  static const String normal = 'Normal notation · 12345';
 }
 
 class _StatusRow extends ConsumerWidget {

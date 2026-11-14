@@ -88,14 +88,18 @@ abstract final class MathPrintController {
   static int openParentheses(EditorState s) => _chain(s).fold(0, (count, seq) => count + seq.unclosedParentheses);
 
   /// The caret at the end of the argument that follows the one it is in, or
-  /// `null` when the caret is not inside a function call with a further
-  /// argument (the `,` key).
+  /// `null` when the caret is not inside a template with a further argument
+  /// (the `,` key). The arguments are those of a function call, the bounds
+  /// and the term of `∫`, `Σ` and `Π`, and the two slots of `d/dx`: what the
+  /// linear form separates by commas.
   static EditorState? nextArgument(EditorState s) {
     final chain = _chain(s);
     for (var level = chain.length - 1; level >= 1; level--) {
       final owner = _ownerAt(chain, s.cursor, level);
-      if (owner is! FunctionCallEditorNode) continue;
-      final slots = owner.argSlots;
+      if (owner is! FunctionCallEditorNode && owner is! CalculusIntegralNode && owner is! DerivativeEditorNode) {
+        continue;
+      }
+      final slots = owner.slots;
       final index = slots.indexWhere((slot) => slot.id == chain[level].id);
       if (index >= 0 && index + 1 < slots.length) {
         final next = slots[index + 1];
@@ -206,6 +210,19 @@ abstract final class MathPrintController {
     return _insertComposite(s, FractionNode(numerator: numerator, denominator: EditorSequence.fresh()), numerator);
   }
 
+  /// Mixed fraction `a b/c` with the caret in the whole part. A sign, typed
+  /// in front of it or into the whole part, is the sign of all of it:
+  /// `−2 1/3` is `−(2 + 1/3)`.
+  static EditorState insertMixedFraction(EditorState s) {
+    if (_atDepthLimit(s)) return insertFraction(s);
+    final whole = EditorSequence.fresh();
+    return _insertComposite(
+      s,
+      FractionNode(whole: whole, numerator: EditorSequence.fresh(), denominator: EditorSequence.fresh()),
+      whole,
+    );
+  }
+
   /// Superscript. With a preset [exponent] (x², x⁻¹) the caret stays behind
   /// the power, otherwise it enters the empty exponent.
   static EditorState insertPower(EditorState s, {List<EditorNode> exponent = const <EditorNode>[]}) {
@@ -257,14 +274,20 @@ abstract final class MathPrintController {
     return _insertComposite(s, FunctionCallEditorNode(functionName: name, argSlots: slots), slots.first);
   }
 
-  /// Definite integral with the caret in the lower bound.
-  static EditorState insertIntegral(EditorState s, {String variable = 'x'}) {
+  /// Definite integral - or, with another [operator], a sum or a product -
+  /// with the caret in the lower bound.
+  static EditorState insertIntegral(
+    EditorState s, {
+    String variable = 'x',
+    BoundedOperator operator = BoundedOperator.integral,
+  }) {
     final lower = EditorSequence.fresh();
     final node = CalculusIntegralNode(
       lowerBound: lower,
       upperBound: EditorSequence.fresh(),
       integrand: EditorSequence.fresh(),
       dummyVariable: variable,
+      operator: operator,
     );
     return _insertComposite(s, node, lower);
   }

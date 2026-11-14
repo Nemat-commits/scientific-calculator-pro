@@ -283,7 +283,9 @@ void main() {
       notifier.setActiveTab(1);
       await settle(tester);
 
-      // gcd(84, 36): the "," key moves on to the second argument.
+      // gcd(84, 36): gcd is in the row that f(x) opens, and the "," key moves
+      // on to the second argument.
+      await tapAll(tester, <Finder>[scientificKey('Show more functions')]);
       await tapAll(tester, <Finder>[scientificKey('gcd')]);
       notifier.pasteText('84');
       await tapAll(tester, <Finder>[scientificKey('Next argument')]);
@@ -304,8 +306,8 @@ void main() {
       await tapAll(tester, <Finder>[scientificKey('MR'), scientificKey('Equals')]);
       expect(stateOf(container).livePreviewPrimary, '12');
 
-      // INV turns gcd into lcm.
-      await tapAll(tester, <Finder>[scientificKey('All clear'), scientificKey('INV'), scientificKey('lcm')]);
+      // lcm stands next to it.
+      await tapAll(tester, <Finder>[scientificKey('All clear'), scientificKey('lcm')]);
       notifier.pasteText('4');
       await tapAll(tester, <Finder>[scientificKey('Next argument')]);
       notifier.pasteText('6');
@@ -328,8 +330,8 @@ void main() {
 
       expect((corner('sin').text, corner('sin').sup), ('sin', '−1'));
       expect((corner('ln').text, corner('ln').sup), ('e', 'x'));
-      expect(corner('factorial').text, 'Γ');
-      expect(corner('gcd').text, 'lcm');
+      expect(corner('factorial').text, 'mod');
+      expect(corner('Ans').text, 'M');
 
       // While INV is on, the key shows the inverse and the corner the way back.
       await tapAll(tester, <Finder>[scientificKey('INV')]);

@@ -32,7 +32,7 @@ final class Token {
   /// Implicit multiplication that binds tighter than `×` and `÷`.
   final bool tight;
 
-  /// Bound variable of a derivative / integral token.
+  /// Bound variable of a derivative / integral / sum / product token.
   final String? variable;
 
   @override
@@ -47,11 +47,14 @@ final class Token {
 /// | node          | tokens                               |
 /// |---------------|--------------------------------------|
 /// | fraction      | `( ( num ) / ( den ) )`              |
+/// | mixed fraction| `( ( whole ) + ( num ) / ( den ) )`  |
+/// | … negative    | `( − ( ( whole ) + ( num ) / ( den ) ) )` |
 /// | power         | `^ ( exponent )`                     |
 /// | square root   | `√ ( radicand )`                     |
 /// | n-th root     | `root ( degree , radicand )`         |
 /// | function      | `name ( arg , … )`                   |
 /// | integral      | `∫ ( lower , upper , integrand )`    |
+/// | sum, product  | `Σ ( first , last , term )`, `Π …`   |
 /// | derivative    | `d/dx ( body , x = point )`          |
 abstract final class TreeToTokenLowerer {
   static const Token _open = Token(TokenKind.leftParen, '(');
@@ -143,11 +146,31 @@ abstract final class TreeToTokenLowerer {
             flush();
             out.add(Token(_kindOf(kind, text), text));
           }
-        case FractionNode(:final numerator, :final denominator):
+        case FractionNode(:final whole, :final numerator, :final denominator):
           flush();
           // A fraction that fills its slot is delimited by the slot itself.
           final enclose = !pretty || nodes.length > 1;
           if (enclose) out.add(_open);
+          // The sign of a mixed number is the sign of all of it: −2 1/3 is
+          // −(2 + 1/3), also when the sign was typed into the whole part.
+          final first = whole == null || whole.isEmpty ? null : whole.children.first;
+          final negative =
+              first is AtomNode && first.kind == AtomKind.binaryOp && (first.text == '−' || first.text == '-');
+          if (whole != null) {
+            final magnitude = negative ? whole.withChildren(whole.children.sublist(1)) : whole;
+            if (negative) {
+              out
+                ..add(const Token(TokenKind.operator, '−'))
+                ..add(_open);
+            }
+            // An empty whole part is an error, not a zero: `()` does not parse.
+            if (pretty && _isSimple(magnitude)) {
+              plain(magnitude);
+            } else {
+              group(magnitude);
+            }
+            out.add(const Token(TokenKind.operator, '+'));
+          }
           if (pretty && _isSimple(numerator)) {
             plain(numerator);
           } else {
@@ -159,6 +182,7 @@ abstract final class TreeToTokenLowerer {
           } else {
             group(denominator);
           }
+          if (negative) out.add(_close);
           if (enclose) out.add(_close);
         case PowerNode(:final exponent):
           flush();
@@ -192,10 +216,16 @@ abstract final class TreeToTokenLowerer {
             plain(argSlots[i]);
           }
           out.add(_close);
-        case CalculusIntegralNode(:final lowerBound, :final upperBound, :final integrand, :final dummyVariable):
+        case CalculusIntegralNode(
+            :final lowerBound,
+            :final upperBound,
+            :final integrand,
+            :final dummyVariable,
+            :final operator
+          ):
           flush();
           out
-            ..add(Token(TokenKind.integral, '∫', variable: dummyVariable))
+            ..add(Token(TokenKind.integral, operator.symbol, variable: dummyVariable))
             ..add(_open);
           plain(lowerBound);
           out.add(_comma);
