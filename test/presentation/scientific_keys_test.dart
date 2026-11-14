@@ -1,11 +1,16 @@
 // The scientific grid of the review: its layout, the INV key, the functions
 // that were added (Σ, Π, a b/c, Rand, ∠, ENG) and CALC.
+import 'dart:async';
+
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modern_scientific_calculator/core/theme/app_colors.dart';
 import 'package:modern_scientific_calculator/domain/editor/calc_key.dart';
 import 'package:modern_scientific_calculator/domain/editor/math_print_controller.dart';
+import 'package:modern_scientific_calculator/domain/math_engine.dart';
+import 'package:modern_scientific_calculator/domain/models/calc_value_codec.dart';
 import 'package:modern_scientific_calculator/domain/models/editor_node.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_notifier.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_ui_state.dart';
@@ -83,6 +88,9 @@ Finder badge(String label) => find.descendant(
       of: find.byType(PersistentDisplayCard),
       matching: find.byWidgetPredicate((w) => w is StatusBadge && w.label == label),
     );
+
+/// The number in the folded display.
+final Finder barResult = find.descendant(of: find.byType(PersistentDisplayCard), matching: find.byType(ResultText));
 
 AtomKey digit(String d) => AtomKey(d, AtomKind.digit);
 AtomKey op(String o) => AtomKey(o, AtomKind.binaryOp);
@@ -641,6 +649,202 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.keyY, character: 'y');
       await settle(tester);
       expect(notifier.expressionText(), '${formula}y');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('undo and redo take the badge with the values off the display, in the same frame', (tester) async {
+      final (container, notifier) = await openScientific(tester);
+      await typeFormula(notifier);
+      await openPrompt(tester);
+      await tapAll(tester, <Finder>[promptKey('5'), promptKey('⏎'), promptKey('2'), promptKey('⏎')]);
+      await settle(tester);
+      expect(badge('x = 5, y = 2'), findsOneWidget);
+      expect(find.bySemanticsLabel('Result: 31'), findsOneWidget);
+
+      // Undo takes the y away. The values belonged to the formula as it was.
+      await tester.tap(find.bySemanticsLabel('Undo'));
+      await tester.pump();
+      expect(badge('x = 5, y = 2'), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('^Result: ')), findsNothing);
+      await settle(tester);
+      expect(stateOf(container).substitution, isNull);
+      expect(notifier.freeVariables(), <String>['x']);
+
+      // The same after redo, with the result of the shorter formula on display.
+      await openPrompt(tester);
+      await tapAll(tester, <Finder>[promptKey('5'), promptKey('⏎')]);
+      await settle(tester);
+      expect(badge('x = 5'), findsOneWidget);
+      expect(find.bySemanticsLabel('Result: 28'), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Redo'));
+      await tester.pump();
+      expect(badge('x = 5'), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('^Result: ')), findsNothing);
+      await settle(tester);
+      expect(notifier.freeVariables(), <String>['x', 'y']);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the folded display shows the values with their result, not the last answer', (tester) async {
+      final (container, notifier) = await openScientific(tester);
+      notifier.pasteText('6×7');
+      await commit(tester, container);
+      notifier.press(const ClearKey());
+      await typeFormula(notifier);
+      await openPrompt(tester);
+      await tapAll(tester, <Finder>[promptKey('5'), promptKey('⏎'), promptKey('2'), promptKey('⏎')]);
+      await settle(tester);
+      expect(stateOf(container).livePreviewPrimary, '31');
+      expect(stateOf(container).variables['Ans'], '42', reason: 'CALC leaves Ans alone');
+
+      // On Lab the display is a bar. The badge with the values stands in front of
+      // what they gave, and the older answer is not shown beside them.
+      notifier.setActiveTab(2);
+      await settle(tester);
+      expect(tester.getSize(find.byType(PersistentDisplayCard)).height, PersistentDisplayCard.barHeight);
+      expect(find.bySemanticsLabel('Evaluated with x = 5, y = 2: 31'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^Ans: ')), findsNothing);
+      expect(badge('x = 5, y = 2'), findsOneWidget, reason: 'once: not among the mode badges as well');
+      final values = tester.getRect(badge('x = 5, y = 2'));
+      final result = tester.getRect(barResult);
+      expect(tester.widget<ResultText>(barResult).value, '31');
+      expect(tester.widget<ResultText>(barResult).prefix, '→');
+      expect(values.left, greaterThan(tester.getRect(find.bySemanticsLabel('Implied multiplication: TI')).right));
+      expect(values.right, lessThan(result.left));
+      expect(values.center.dy, moreOrLessEquals(result.center.dy, epsilon: 1), reason: 'on one line');
+      expect(tester.takeException(), isNull);
+
+      // Opened, it is the display as it was.
+      await tester.tap(find.bySemanticsLabel('Expand display'));
+      await settle(tester);
+      expect(badge('x = 5, y = 2'), findsOneWidget);
+      expect(find.bySemanticsLabel('Evaluated with: x = 5, y = 2'), findsOneWidget);
+      expect(find.bySemanticsLabel('Result: 31'), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Collapse display'));
+      await settle(tester);
+
+      // Once the formula changes, the result is gone and the bar is back at the last answer.
+      notifier.press(digit('1'));
+      await settle(tester);
+      expect(find.bySemanticsLabel(RegExp('^Evaluated with')), findsNothing);
+      expect(find.bySemanticsLabel('Ans: 42'), findsOneWidget);
+    });
+
+    testWidgets('the folded display shortens a long result, and reports values that failed', (tester) async {
+      final (container, notifier) = await openScientific(tester);
+      notifier.pasteText('1/x');
+      await settle(tester);
+      await openPrompt(tester);
+      await tapAll(tester, <Finder>[promptKey('3')]);
+      await tester.tap(find.text('Evaluate'));
+      await settle(tester);
+      expect(stateOf(container).livePreviewPrimary, '0.3333333333333333333333333333333333');
+
+      notifier.setActiveTab(2);
+      await settle(tester);
+      // Ten digits, as for Ans: 34 of them would not be readable in the bar.
+      expect(find.bySemanticsLabel('Evaluated with x = 3: 0.3333333333'), findsOneWidget);
+
+      notifier.setActiveTab(1);
+      await settle(tester);
+      await openPrompt(tester);
+      await tapAll(tester, <Finder>[promptKey('0')]);
+      await tester.tap(find.text('Evaluate'));
+      await settle(tester);
+      final message = stateOf(container).errorMessage;
+      expect(message, isNotNull);
+
+      notifier.setActiveTab(2);
+      await settle(tester);
+      expect(find.bySemanticsLabel('Evaluated with x = 0: $message'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^Ans: ')), findsNothing);
+      expect(badge('x = 0'), findsOneWidget);
+      expect(barResult, findsNothing);
+      // The message follows the badge, in the colour of an error.
+      final shown = find.descendant(of: find.byType(PersistentDisplayCard), matching: find.textContaining(message!));
+      expect(tester.widget<Text>(shown).style?.color, AppColors.error);
+      expect(tester.widget<Text>(shown).maxLines, 2, reason: 'a long message runs on to a second line');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('in the folded display a long list of values stands above its result, which keeps its size',
+        (tester) async {
+      final (container, notifier) = await openScientific(tester);
+      notifier.pasteText('A+B+C+D+E');
+      await settle(tester);
+      await openPrompt(tester);
+      expect(promptFields(tester).map((f) => f.label), <String>['A =', 'B =', 'C =', 'D =', 'E =']);
+      for (final value in <String>['1', '2', '3', '4', '5']) {
+        await tapAll(tester, <Finder>[promptKey(value), promptKey('⏎')]);
+      }
+      await settle(tester);
+      expect(stateOf(container).livePreviewPrimary, '15');
+      const note = 'A = 1, B = 2, C = 3, D = 4, E = 5';
+      expect(stateOf(container).substitution, note);
+
+      notifier.setActiveTab(2);
+      await settle(tester);
+      expect(find.bySemanticsLabel('Evaluated with $note: 15'), findsOneWidget);
+      final card = tester.getRect(find.byType(PersistentDisplayCard));
+      final values = tester.getRect(badge(note));
+      final result = tester.getRect(barResult);
+      expect(values.bottom, lessThanOrEqualTo(result.top), reason: 'the values have a line of their own');
+      expect(values.right, moreOrLessEquals(result.right, epsilon: 0.5), reason: 'both end at the same edge');
+      expect(values.top, greaterThan(card.top));
+      expect(result.bottom, lessThan(card.bottom));
+      expect(values.left, greaterThan(tester.getRect(find.bySemanticsLabel('Implied multiplication: TI')).right));
+      // The result is drawn at its size: nothing had to shrink for the values.
+      final fitted = find.descendant(of: barResult, matching: find.byType(FittedBox));
+      final text = find.descendant(of: fitted, matching: find.byType(RichText)).first;
+      expect(tester.getSize(fitted), tester.getSize(text));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('with the largest text on a small phone the folded display keeps its two lines inside the bar',
+        (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3; // of which the app takes 1.15
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final (_, notifier) = await openScientific(tester, size: const Size(360, 640));
+      notifier.pasteText('x÷y÷z');
+      await settle(tester);
+      Future<void> evaluateWith(Map<String, String> values) async {
+        unawaited(notifier.evaluateWith(
+          <String, String>{
+            for (final MapEntry(:key, :value) in values.entries)
+              key: CalcValueCodec.encode(MathEngine.evaluateText(value).value),
+          },
+          note: values.entries.map((e) => '${e.key} = ${e.value}').join(', '),
+        ));
+        await settle(tester);
+      }
+
+      notifier.setActiveTab(2);
+      await settle(tester);
+      final card = tester.getRect(find.byType(PersistentDisplayCard));
+      expect(card.height, PersistentDisplayCard.barHeight);
+
+      await evaluateWith(<String, String>{'x': '1', 'y': '3', 'z': '7'});
+      final values = tester.getRect(badge('x = 1, y = 3, z = 7'));
+      final result = tester.getRect(barResult);
+      expect(tester.widget<ResultText>(barResult).value, '0.04761904762');
+      expect(values.bottom, lessThanOrEqualTo(result.top), reason: 'two lines');
+      expect(values.top, greaterThan(card.top));
+      expect(result.bottom, lessThan(card.bottom));
+
+      await evaluateWith(<String, String>{'x': '1', 'y': '0', 'z': '7'});
+      final failed = tester.getRect(badge('x = 1, y = 0, z = 7'));
+      final message = tester.getRect(
+        find.descendant(of: find.byType(PersistentDisplayCard), matching: find.textContaining('Division by zero')),
+      );
+      expect(message.top, greaterThan(card.top));
+      expect(message.bottom, lessThan(card.bottom));
+      expect(failed.bottom, lessThanOrEqualTo(message.bottom));
+      // The badge is a widget in a line of text here, and such a widget is
+      // enlarged with the text: it must not come out larger than elsewhere.
+      expect(failed.height, moreOrLessEquals(values.height, epsilon: 0.01));
+      final shown = find.descendant(of: find.byType(PersistentDisplayCard), matching: find.textContaining('Division'));
+      expect(tester.widget<Text>(shown).style?.fontSize, moreOrLessEquals(12 * 1.15),
+          reason: 'the message is enlarged');
       expect(tester.takeException(), isNull);
     });
 

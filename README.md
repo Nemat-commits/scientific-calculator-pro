@@ -46,16 +46,20 @@ muted `0`, and a parenthesis that has not been closed yet is drawn as a ghost
 `)` where it will be closed. A line that gets too long first shrinks, then
 scrolls with faded edges; the caret stays in view. Badges switch the angle
 unit (DEG, RAD, GRAD), real or complex results, and how `6÷2(1+2)` is read
-(TI: 9, CASIO: 1); the last two say in a short message what they have just
-switched to. An `ENG` badge is there while engineering notation is on, and a
-tap switches it off. Undo, redo, copy and paste sit next to them; pasted text
-such as `1,250.50 × 2³ − √16` is cleaned up and turned into editable
-structure. Pulling the handle down opens the recent history.
+(TI: 9, CASIO: 1); each says in a short message what it has just switched to
+(`Radians · sin(π ÷ 2) = 1`). An `ENG` badge is there while engineering
+notation is on, and a tap switches it off. Undo, redo, copy and paste sit next
+to them; pasted text such as `1,250.50 × 2³ − √16` is cleaned up and turned
+into editable structure. Pulling the handle down opens the recent history.
 
 Lab, Convert and History have their own input and read-out. On these tabs the
-card folds into a one-line bar that keeps the badges and shows the last
-answer, and the tab gets the room. A tap on the bar opens the display where
-it is; the chevron folds it again, and so does the next tab change.
+card folds into a bar that keeps the badges and shows the last answer, in
+engineering notation while `ENG` is on, and the tab gets the room. While a
+result of `CALC` is on display the bar shows that instead of `Ans`, behind
+the values it was worked out with (`x = 5 → 28`), or the message of values
+that failed; values that do not fit beside their result stand above it. A tap
+on the bar opens the display where it is; the chevron folds it again, and so
+does the next tab change.
 
 **Five tabs.**
 
@@ -123,8 +127,9 @@ hold the network permission, and its fonts are bundled.
 
 ## Download
 
-The APKs of version 3.2.0 are in [`releases/`](releases/). The links download
-the file:
+The APKs of version 3.2.0 are in [`releases/`](releases/). They are one patch
+behind the sources, which are 3.2.1: what [changed in 3.2.1](#version-321) is
+not in them yet. The links download the file:
 
 | File | Size | Use it for |
 | --- | --- | --- |
@@ -221,7 +226,7 @@ dart test test/domain/engine_verification_test.dart --plain-name "MathEngine"   
 dart test test/domain/engine_verification_test.dart                              # gate 2: all 24 cases, under 50 ms together
 dart test test/domain                                                            # the whole engine and editor suite; needs no Flutter
 flutter test                                                                     # gate 3: the above plus state, isolates and widgets
-CALC_SCREENSHOTS=1 flutter test test/screenshots                                 # renders 38 PNGs into build/screenshots/
+CALC_SCREENSHOTS=1 flutter test test/screenshots                                 # renders 39 PNGs into build/screenshots/
 ```
 
 | Suite | What it covers |
@@ -230,11 +235,11 @@ CALC_SCREENSHOTS=1 flutter test test/screenshots                                
 | `test/domain/editor_and_engines_test.dart` | Editor tree and cursor, paste clean-up, formatter, calculus, solver, matrices, statistics, Base-N, unit conversion. |
 | `test/domain/sums_polar_notation_test.dart` | `Σ` and `Π`, mixed fractions, the polar form, `Rand` with a scripted source of random numbers, engineering notation, and the variables an expression depends on. |
 | `test/domain/reference_values_test.dart` | The numbers of Convert and Lab against values the app did not produce (see [Checked against references](#checked-against-references)). |
-| `test/presentation/calculator_notifier_test.dart` | Live preview, what the next key does after `=`, errors, undo, memory, variables, persistence of modes and draft, `CALC` (nothing stored, formula and caret kept, errors that do not lock, mode changes) and `ENG`. |
+| `test/presentation/calculator_notifier_test.dart` | Live preview, what the next key does after `=`, errors, undo, memory, variables, persistence of modes and draft, `CALC` (nothing stored, formula and caret kept, errors that do not lock, mode changes, undo and redo) and `ENG` (there and back, and that the short form of a huge factorial stays as it is). |
 | `test/presentation/evaluator_isolate_pool_test.dart` | Evaluation on a worker isolate, cancellation by newer input, the 250 ms preview budget, the watchdog that replaces a stuck worker. |
 | `test/presentation/calculator_shell_test.dart`, `display_card_test.dart` | Keys, hardware keyboard, gestures, every tab and Lab mode at four screen sizes without overflow, shrinking and scrolling of long lines, screen-reader labels. |
-| `test/presentation/ux_improvements_test.dart` | The changes of 3.1: folding and reopening of the display, mode messages, placeholder and ghost parentheses, the quick function row, the parenthesis counter, the corner legends of the scientific grid, sending values from Lab, Convert and History to the expression, Base-N on a small phone; the data units with their steps, and that no unit name is cut short on a phone. |
-| `test/presentation/scientific_keys_test.dart` | The changes of 3.2: every key of the scientific grid in its place with and without `INV`, the colour of `INV`, the `f(x)` rows, `Σ`, `Π`, mixed fraction, `∠`, `Rand` and `ENG` from their keys, and the `CALC` prompt from the keys and from a hardware keyboard. |
+| `test/presentation/ux_improvements_test.dart` | The changes of 3.1: folding and reopening of the display, the notation of the answer in its bar, the messages of the modes and of the angle unit (each checked against what the calculator then computes), placeholder and ghost parentheses, the quick function row, the parenthesis counter, the corner legends of the scientific grid, sending values from Lab, Convert and History to the expression, Base-N on a small phone; the data units with their steps, and that no unit name is cut short on a phone. |
+| `test/presentation/scientific_keys_test.dart` | The changes of 3.2: every key of the scientific grid in its place with and without `INV`, the colour of `INV`, the `f(x)` rows, `Σ`, `Π`, mixed fraction, `∠`, `Rand` and `ENG` from their keys, and the `CALC` prompt from the keys and from a hardware keyboard; what the folded display shows after `CALC`. |
 | `test/screenshots/screenshots_test.dart` | Skipped unless `CALC_SCREENSHOTS=1`; then renders the screens at phone, small-phone, landscape and tablet sizes. |
 
 `.github/scripts/emulator_smoke.sh <apk> <out-dir>` drives a release APK on a
@@ -522,13 +527,42 @@ left a choice:
 - **Converter.** There was no special case for zero: the dashes came from
   an empty field, which now counts as 0.
 
+### Version 3.2.1
+
+Two things the folded display got wrong, and a message that was missing:
+
+- **The answer in the bar follows `ENG`.** It was always written in the plain
+  notation: with `ENG` on, the bar said `827,115` where the display says
+  `827.115×10³`.
+- **After `CALC` the bar shows what `CALC` gave.** `CALC` leaves `Ans` alone,
+  and the bar showed `Ans` whatever was on display. After `x×x+3` with
+  `x = 5` it had the badge `x = 5` next to `Ans = 42`, a number those values
+  had not given. It now shows what the open display shows: the badge with
+  the values, an arrow and their result (ten digits, as for `Ans`), or the
+  message of values that failed. Values that do not fit beside the result
+  take a line of their own above it instead of shrinking it.
+- **The angle unit says what it was switched to**, as the other modes do:
+  `Degrees · sin(90) = 1`, `Radians · sin(π ÷ 2) = 1`,
+  `Gradians · sin(100) = 1`.
+
+Two things were examined and left as they are; each has a test now:
+
+- **`ENG` there and back.** Switching `ENG` off writes the result on display
+  in the plain notation again. The one result that neither direction
+  rewrites is the short form of a huge factorial (`5000!` is
+  `4.2285779266 × 10^16325`): those eleven digits are all that is shown of
+  such a number, and written anew from its value it would come back with 34.
+- **Undo and redo after `CALC`.** Both take the result of `CALC` and its
+  values off the display in the step that changes the expression, so the
+  badge is gone in the same frame.
+
 ## What has been verified, and what has not
 
 On CI, with the code as it is in this commit:
 
 - `flutter analyze` reports no issues and `dart format` no changes.
 - All 24 blueprint cases pass and take 7 to 15 ms together (budget 50 ms).
-- `flutter test`: 215 tests pass (112 of them engine and editor tests that
+- `flutter test`: 224 tests pass (112 of them engine and editor tests that
   also run under plain `dart test`); the 4 screenshot tests are skipped
   unless requested and pass when run.
 - The numbers of Convert and Lab agree with the reference values (see
@@ -543,10 +577,16 @@ On CI, with the code as it is in this commit:
   keyboard and shows `28` for `x×x+3` with the formula still in the editor,
   and a `Σ` filled in slot by slot gives `10` for the sum of 1 to 4. Logcat
   contains no Flutter error. What the screens show was read off the
-  screenshots of the run.
+  screenshots of the run for 3.2.0. For 3.2.1 the same script ran and passed;
+  its screenshots were not looked at.
 
 Not verified:
 
+- The changes of 3.2.1 were not run on Android. The emulator script does not
+  go to a folded tab while a result of `CALC` is on display, and does not tap
+  the angle unit. They are covered by widget tests and were looked at in
+  pictures that the test engine rendered at 360 and 412 dp of width, with the
+  layout code and the fonts of the app.
 - No physical device was used. Haptics, the 90/120 Hz request, real GPUs and
   ARM hardware are exercised only by code review and by the build. The
   emulator ran the universal APK; the two ARM APKs in `releases/` come from

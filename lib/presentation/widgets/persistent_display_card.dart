@@ -235,13 +235,23 @@ class _PersistentDisplayCardState extends ConsumerState<PersistentDisplayCard> {
 }
 
 /// The status badges of the display; the mode badges switch their mode.
-List<Widget> _statusBadges(WidgetRef ref, CalculatorUiState state, String? notice) {
+/// [withValues]: whether the values of `CALC` are one of them (the folded
+/// display writes them in front of their result instead).
+List<Widget> _statusBadges(WidgetRef ref, CalculatorUiState state, String? notice, {bool withValues = true}) {
   final notifier = ref.read(calculatorProvider.notifier);
   // Says in one line what the mode that was just selected does.
   void explain(String Function(CalculatorUiState now) message) =>
       ref.read(toastProvider.notifier).show(message(ref.read(calculatorProvider)));
   return <Widget>[
-    StatusBadge(state.angleUnit.label, highlighted: true, onTap: notifier.cycleAngleUnit, semanticLabel: 'Angle unit'),
+    StatusBadge(
+      state.angleUnit.label,
+      highlighted: true,
+      onTap: () {
+        notifier.cycleAngleUnit();
+        explain((now) => ModeHints.angle(now.angleUnit));
+      },
+      semanticLabel: 'Angle unit',
+    ),
     StatusBadge(
       state.isComplexEnabled ? 'CPLX' : 'REAL',
       highlighted: state.isComplexEnabled,
@@ -272,7 +282,7 @@ List<Widget> _statusBadges(WidgetRef ref, CalculatorUiState state, String? notic
     if (state.isHyperbolicActive) const StatusBadge('HYP', highlighted: true),
     if (state.hasMemory) const StatusBadge('M', highlighted: true),
     // The values CALC evaluated the expression with.
-    if (state.substitution != null)
+    if (withValues && state.substitution != null)
       StatusBadge(state.substitution!, highlighted: true, semanticLabel: 'Evaluated with'),
     if (state.inputPhase == InputPhase.errorLocked) const StatusBadge('ERROR', danger: true),
     if (state.isEvaluatingHeavy) const _BusyDot(),
@@ -288,6 +298,16 @@ abstract final class ModeHints {
   static const String real = 'Real mode · √(−1) is a math error';
   static const String engineering = 'Engineering notation · 12345 = 12.345 × 10³';
   static const String normal = 'Normal notation · 12345';
+  static const String degrees = 'Degrees · sin(90) = 1';
+  static const String radians = 'Radians · sin(π ÷ 2) = 1';
+  static const String gradians = 'Gradians · sin(100) = 1';
+
+  /// The hint of the angle unit [unit].
+  static String angle(AngleUnit unit) => switch (unit) {
+        AngleUnit.deg => degrees,
+        AngleUnit.rad => radians,
+        AngleUnit.grad => gradians,
+      };
 }
 
 class _StatusRow extends ConsumerWidget {
@@ -331,8 +351,9 @@ class _StatusRow extends ConsumerWidget {
   }
 }
 
-/// The collapsed card: status badges on the left, the last answer on the
-/// right. A tap opens the full display.
+/// The collapsed card: status badges on the left and, on the right, the last
+/// answer - or, while a result of `CALC` is on display, the values with what
+/// they gave. A tap opens the full display.
 class _MiniBar extends ConsumerWidget {
   const _MiniBar({required this.state, required this.notice, required this.onExpand});
 
@@ -340,9 +361,95 @@ class _MiniBar extends ConsumerWidget {
   final String? notice;
   final VoidCallback? onExpand;
 
+  static const double _fontSize = 14;
+
+  /// Ten digits in the notation that is on: the bar has room for no more.
+  String _short(String encoded) =>
+      NumberFormatter.formatValue(CalcValueCodec.decode(encoded), prec: 10, notation: state.notation);
+
+  /// `Ans = 42`
+  Widget _answer() {
+    final answer = _short(state.variables['Ans'] ?? '0');
+    return Semantics(
+      container: true,
+      label: 'Ans: $answer',
+      excludeSemantics: true,
+      child: ResultText(
+        answer,
+        fontSize: _fontSize,
+        color: AppColors.textSecondary,
+        weight: AppWeight.regular,
+        prefix: 'Ans =',
+      ),
+    );
+  }
+
+  /// `x = 5 → 28`: what `CALC` has on display, which is not `Ans` (that keeps
+  /// the result of the last `=`). The values are the badge of the open
+  /// display. What does not fit one line takes two, the values above and
+  /// their result below, so that a long list of values never shrinks the
+  /// result.
+  Widget _evaluated(String values, String result) => Semantics(
+        container: true,
+        label: 'Evaluated with $values: $result',
+        excludeSemantics: true,
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          children: <Widget>[
+            StatusBadge(values, highlighted: true, margin: EdgeInsets.zero),
+            ResultText(
+              result,
+              fontSize: _fontSize,
+              color: AppColors.textSecondary,
+              weight: AppWeight.regular,
+              prefix: '→',
+            ),
+          ],
+        ),
+      );
+
+  /// Values that failed, with the message of the open display: it follows
+  /// the badge and runs on to a second line.
+  ///
+  /// A widget in a line of text is enlarged together with the text. The badge
+  /// enlarges its own text already, so the line as a whole is not scaled
+  /// and the message is given its size by [scaler] here.
+  Widget _failed(String values, String message, TextScaler scaler) => Semantics(
+        container: true,
+        label: 'Evaluated with $values: $message',
+        excludeSemantics: true,
+        child: Text.rich(
+          TextSpan(
+            children: <InlineSpan>[
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: StatusBadge(values, highlighted: true, margin: EdgeInsets.zero),
+              ),
+              TextSpan(text: '  $message'),
+            ],
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.right,
+          textScaler: TextScaler.noScaling,
+          style: AppTypography.ui(size: scaler.scale(12), weight: AppWeight.medium, color: AppColors.error),
+        ),
+      );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final answer = NumberFormatter.formatValue(CalcValueCodec.decode(state.variables['Ans'] ?? '0'), prec: 10);
+    final values = state.inputPhase == InputPhase.editing ? state.substitution : null;
+    final value = values == null ? null : ref.read(calculatorProvider.notifier).calcResult;
+    final Widget readout;
+    if (values == null) {
+      readout = _answer();
+    } else if (value == null || state.errorMessage != null) {
+      readout = _failed(values, state.errorMessage ?? 'Error', MediaQuery.textScalerOf(context));
+    } else {
+      readout = _evaluated(values, _short(value));
+    }
     return LayoutBuilder(
       builder: (context, constraints) => GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -355,24 +462,11 @@ class _MiniBar extends ConsumerWidget {
                 constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.55),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  child: Row(children: _statusBadges(ref, state, notice)),
+                  child: Row(children: _statusBadges(ref, state, notice, withValues: values == null)),
                 ),
               ),
               const SizedBox(width: 6),
-              Expanded(
-                child: Semantics(
-                  container: true,
-                  label: 'Ans: $answer',
-                  excludeSemantics: true,
-                  child: ResultText(
-                    answer,
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                    weight: AppWeight.regular,
-                    prefix: 'Ans =',
-                  ),
-                ),
-              ),
+              Expanded(child: readout),
               if (onExpand != null) _IconAction(AppIconGlyph.expand, 'Expand display', onExpand),
             ],
           ),
@@ -384,20 +478,32 @@ class _MiniBar extends ConsumerWidget {
 
 /// A small pill in the status row; tappable when [onTap] is set.
 class StatusBadge extends StatelessWidget {
-  const StatusBadge(this.label,
-      {super.key, this.highlighted = false, this.danger = false, this.onTap, this.semanticLabel});
+  const StatusBadge(
+    this.label, {
+    super.key,
+    this.highlighted = false,
+    this.danger = false,
+    this.onTap,
+    this.semanticLabel,
+    this.margin = const EdgeInsets.only(right: 6),
+  });
 
   final String label;
   final bool highlighted;
   final bool danger;
   final VoidCallback? onTap;
+
+  /// What the badge is about; a screen reader says it in front of [label].
   final String? semanticLabel;
+
+  /// The gap to what follows in the status row.
+  final EdgeInsets margin;
 
   @override
   Widget build(BuildContext context) {
     final color = danger ? AppColors.error : (highlighted ? AppColors.accent : AppColors.textMuted);
     final pill = Container(
-      margin: const EdgeInsets.only(right: 6),
+      margin: margin,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: danger ? AppColors.errorSoft : (highlighted ? AppColors.accentFaint : AppColors.transparent),
@@ -406,9 +512,15 @@ class StatusBadge extends StatelessWidget {
             color: danger ? AppColors.errorSoft : (highlighted ? AppColors.accentSoft : AppColors.cardBorder)),
       ),
       child: Text(label,
-          maxLines: 1, style: AppTypography.ui(size: 10.5, weight: AppWeight.strong, color: color, letterSpacing: 0.4)),
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.ui(size: 10.5, weight: AppWeight.strong, color: color, letterSpacing: 0.4)),
     );
-    if (onTap == null) return pill;
+    if (onTap == null) {
+      if (semanticLabel == null) return pill;
+      return Semantics(container: true, label: '$semanticLabel: $label', excludeSemantics: true, child: pill);
+    }
     return Semantics(
       button: true,
       label: semanticLabel == null ? label : '$semanticLabel: $label',
