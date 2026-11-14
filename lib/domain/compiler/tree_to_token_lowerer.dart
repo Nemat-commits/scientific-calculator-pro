@@ -32,7 +32,7 @@ final class Token {
   /// Implicit multiplication that binds tighter than `×` and `÷`.
   final bool tight;
 
-  /// Bound variable of a derivative / integral token.
+  /// Bound variable of a derivative / integral / sum / product token.
   final String? variable;
 
   @override
@@ -47,21 +47,26 @@ final class Token {
 /// | node          | tokens                               |
 /// |---------------|--------------------------------------|
 /// | fraction      | `( ( num ) / ( den ) )`              |
+/// | mixed fraction| `( ( whole ) + ( num ) / ( den ) )`  |
+/// | … negative    | `( − ( ( whole ) + ( num ) / ( den ) ) )` |
 /// | power         | `^ ( exponent )`                     |
 /// | square root   | `√ ( radicand )`                     |
 /// | n-th root     | `root ( degree , radicand )`         |
 /// | function      | `name ( arg , … )`                   |
 /// | integral      | `∫ ( lower , upper , integrand )`    |
+/// | sum, product  | `Σ ( first , last , term )`, `Π …`   |
 /// | derivative    | `d/dx ( body , x = point )`          |
 abstract final class TreeToTokenLowerer {
   static const Token _open = Token(TokenKind.leftParen, '(');
   static const Token _close = Token(TokenKind.rightParen, ')');
   static const Token _comma = Token(TokenKind.comma, ',');
 
-  /// Token stream of [sequence].
-  static List<Token> lower(EditorSequence sequence) {
+  /// Token stream of [sequence]. With [programmer] the digits are those of a
+  /// Base-N number, where `E` is the hexadecimal digit and never an exponent
+  /// marker: `1E−1` is a subtraction.
+  static List<Token> lower(EditorSequence sequence, {bool programmer = false}) {
     final out = <Token>[];
-    _lowerSequence(sequence, out);
+    _lowerSequence(sequence, out, programmer: programmer);
     return out;
   }
 
@@ -101,7 +106,7 @@ abstract final class TreeToTokenLowerer {
   /// Concatenated lexemes of [tokens].
   static String textOf(List<Token> tokens) => tokens.where((t) => !t.implicit).map((t) => t.text).join();
 
-  static void _lowerSequence(EditorSequence sequence, List<Token> out, {bool pretty = false}) {
+  static void _lowerSequence(EditorSequence sequence, List<Token> out, {bool pretty = false, bool programmer = false}) {
     final literal = StringBuffer();
 
     void flush() {
@@ -111,7 +116,14 @@ abstract final class TreeToTokenLowerer {
       }
     }
 
-    void plain(EditorSequence inner) => _lowerSequence(inner, out, pretty: pretty);
+    // A parenthesis that is still open where a slot ends is closed there, so
+    // it cannot swallow what follows the template: 2^[(1+1]×3 is 2^((1+1))×3.
+    void plain(EditorSequence inner) {
+      _lowerSequence(inner, out, pretty: pretty, programmer: programmer);
+      for (var open = inner.unclosedParentheses; open > 0; open--) {
+        out.add(_close);
+      }
+    }
 
     void group(EditorSequence inner) {
       out.add(_open);
@@ -125,7 +137,7 @@ abstract final class TreeToTokenLowerer {
       switch (node) {
         case AtomNode(:final text, :final kind):
           // A sign directly behind the exponent marker belongs to the literal.
-          final afterExponent = literal.isNotEmpty && literal.toString().endsWith('E');
+          final afterExponent = !programmer && literal.isNotEmpty && literal.toString().endsWith('E');
           if (kind == AtomKind.digit) {
             literal.write(text);
           } else if (afterExponent && kind == AtomKind.binaryOp && (text == '−' || text == '-' || text == '+')) {
@@ -134,11 +146,31 @@ abstract final class TreeToTokenLowerer {
             flush();
             out.add(Token(_kindOf(kind, text), text));
           }
-        case FractionNode(:final numerator, :final denominator):
+        case FractionNode(:final whole, :final numerator, :final denominator):
           flush();
           // A fraction that fills its slot is delimited by the slot itself.
           final enclose = !pretty || nodes.length > 1;
           if (enclose) out.add(_open);
+          // The sign of a mixed number is the sign of all of it: −2 1/3 is
+          // −(2 + 1/3), also when the sign was typed into the whole part.
+          final first = whole == null || whole.isEmpty ? null : whole.children.first;
+          final negative =
+              first is AtomNode && first.kind == AtomKind.binaryOp && (first.text == '−' || first.text == '-');
+          if (whole != null) {
+            final magnitude = negative ? whole.withChildren(whole.children.sublist(1)) : whole;
+            if (negative) {
+              out
+                ..add(const Token(TokenKind.operator, '−'))
+                ..add(_open);
+            }
+            // An empty whole part is an error, not a zero: `()` does not parse.
+            if (pretty && _isSimple(magnitude)) {
+              plain(magnitude);
+            } else {
+              group(magnitude);
+            }
+            out.add(const Token(TokenKind.operator, '+'));
+          }
           if (pretty && _isSimple(numerator)) {
             plain(numerator);
           } else {
@@ -150,6 +182,7 @@ abstract final class TreeToTokenLowerer {
           } else {
             group(denominator);
           }
+          if (negative) out.add(_close);
           if (enclose) out.add(_close);
         case PowerNode(:final exponent):
           flush();
@@ -183,10 +216,16 @@ abstract final class TreeToTokenLowerer {
             plain(argSlots[i]);
           }
           out.add(_close);
-        case CalculusIntegralNode(:final lowerBound, :final upperBound, :final integrand, :final dummyVariable):
+        case CalculusIntegralNode(
+            :final lowerBound,
+            :final upperBound,
+            :final integrand,
+            :final dummyVariable,
+            :final operator
+          ):
           flush();
           out
-            ..add(Token(TokenKind.integral, '∫', variable: dummyVariable))
+            ..add(Token(TokenKind.integral, operator.symbol, variable: dummyVariable))
             ..add(_open);
           plain(lowerBound);
           out.add(_comma);

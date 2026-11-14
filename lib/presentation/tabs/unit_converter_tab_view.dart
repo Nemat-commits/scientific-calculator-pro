@@ -5,6 +5,7 @@ import '../../core/constants/math_constants.dart';
 import '../../core/constants/unit_definitions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../domain/evaluator/number_formatter.dart';
 import '../../domain/evaluator/unit_converter_engine.dart';
 import '../../domain/math_engine.dart';
 import '../../domain/models/calc_error.dart';
@@ -13,11 +14,13 @@ import '../../domain/models/editor_node.dart';
 import '../state/calculator_notifier.dart';
 import '../widgets/lab_widgets.dart';
 import '../widgets/result_text.dart';
+import '../widgets/shell_layout.dart';
 
 /// Tab 4: converter for 12 unit categories plus the CODATA constants.
 ///
 /// Every unit of the selected category is listed with its converted value;
-/// tapping a row makes it the unit that is being typed.
+/// tapping a row makes it the unit that is being typed, and the `↗` of a row
+/// sends its value to the main expression.
 class UnitConverterTabView extends ConsumerStatefulWidget {
   const UnitConverterTabView({super.key});
 
@@ -48,9 +51,10 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
   }
 
   CalcValue? _typed() {
-    if (_input.isEmpty || _input == '−') return null;
+    if (_input == '−') return null;
     try {
-      return MathEngine.evaluateText(_input).value;
+      // An empty field reads 0, and 0 is what gets converted (0 °C = 32 °F).
+      return MathEngine.evaluateText(_input.isEmpty ? '0' : _input).value;
     } on CalcError {
       return null;
     }
@@ -70,11 +74,14 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
   void _insertConstant(PhysicalConstant constant) {
     ref.read(calculatorProvider.notifier).insertNodes(<EditorNode>[AtomNode(constant.symbol, AtomKind.constant)]);
     setState(() => _inserted = constant.symbol);
+    ShellLayout.showKeypad(context);
   }
 
   Widget _unitRow(UnitDef unit, CalcValue? value) {
     final active = identical(unit, _source);
     final shown = active ? null : _converted(value, unit);
+    // What the ↗ of this row sends to the calculator.
+    final number = active ? (value == null ? null : NumberFormatter.formatValue(value, prec: 12)) : shown;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => setState(() {
@@ -104,13 +111,18 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
               ),
             ),
             Expanded(
-              flex: 4,
-              child: Text(
-                unit.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.ui(size: 11.5, color: AppColors.textMuted),
-              ),
+              // Where units say how they are built, that takes half of the line.
+              flex: _current.hasSteps ? 5 : 4,
+              child: unit.step == null
+                  // A long name takes a second line: what stands at its end
+                  // ("thermochemical", "metric", "US") says which unit it is.
+                  ? Text(
+                      unit.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: StepAndName.wrappedNameStyle,
+                    )
+                  : StepAndName(step: unit.step!, name: unit.name, category: _current),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -123,10 +135,24 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
                         // The unit being typed shows the keystrokes as they are.
                         active ? AppTypography.signs(_input.isEmpty ? '0' : _input) : '—',
                         maxLines: 1,
-                        style: AppTypography.mono(size: 15, weight: active ? AppWeight.medium : AppWeight.regular),
+                        style: AppTypography.mono(
+                          size: 15,
+                          weight: active ? AppWeight.medium : AppWeight.regular,
+                          color: active && _input.isEmpty ? AppColors.textFaint : AppColors.textPrimary,
+                        ),
                       ),
                     )
                   : ResultText(shown, fontSize: 15, weight: AppWeight.regular),
+            ),
+            // Every row keeps the room of the button, so the values line up.
+            SizedBox(
+              width: 28,
+              child: number == null
+                  ? null
+                  : SendButton(
+                      onTap: () => ShellLayout.sendToCalculator(context, number),
+                      label: 'Use the value in ${unit.name} in the calculator',
+                    ),
             ),
           ],
         ),
@@ -231,7 +257,17 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
                       )
                     : ListView(
                         key: ValueKey<String>(_current.id),
-                        children: <Widget>[for (final unit in _current.units) _unitRow(unit, value)],
+                        children: <Widget>[
+                          if (_current.note != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                _current.note!,
+                                style: AppTypography.ui(size: 11.5, color: AppColors.textMuted),
+                              ),
+                            ),
+                          for (final unit in _current.units) _unitRow(unit, value),
+                        ],
                       ),
               ),
             ),
@@ -249,6 +285,76 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
               ),
             ],
           ],
+        );
+      },
+    );
+  }
+}
+
+/// How a unit is built from the one below it (`1000 kB`) and its name.
+///
+/// The two stand side by side where every unit of the [category] has room
+/// for that, and otherwise one above the other - the same way in all lines
+/// of the category, and never cut short.
+class StepAndName extends StatelessWidget {
+  const StepAndName({super.key, required this.step, required this.name, required this.category});
+
+  final String step;
+  final String name;
+  final UnitCategory category;
+
+  static final TextStyle stepStyle = AppTypography.mono(size: 11.5, color: AppColors.textSecondary);
+  static final TextStyle nameStyle = AppTypography.ui(size: 11.5, color: AppColors.textMuted);
+
+  /// The same for a name that may take two lines.
+  static final TextStyle wrappedNameStyle = AppTypography.ui(size: 11.5, color: AppColors.textMuted, height: 1.2);
+  static const double gap = 8;
+
+  static double _width(String text, TextStyle style, TextScaler scaler) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
+  }
+
+  static final Map<(String, TextScaler), double> _widthOfBoth = <(String, TextScaler), double>{};
+
+  /// The room the widest step and name of [category] need side by side.
+  static double widthOfBoth(UnitCategory category, TextScaler scaler) => _widthOfBoth.putIfAbsent(
+        (category.id, scaler),
+        () {
+          var needed = 0.0;
+          for (final unit in category.units) {
+            final step = unit.step;
+            if (step == null) continue;
+            final both = _width(step, stepStyle, scaler) + gap + _width(unit.name, nameStyle, scaler);
+            if (both > needed) needed = both;
+          }
+          return needed;
+        },
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stepText = Text(step, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: stepStyle);
+        final nameText = Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: nameStyle);
+        if (widthOfBoth(category, scaler) <= constraints.maxWidth) {
+          return Row(
+            children: <Widget>[stepText, const SizedBox(width: gap), Flexible(child: nameText)],
+          );
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[stepText, const SizedBox(height: 1), nameText],
         );
       },
     );

@@ -6,6 +6,9 @@ enum TemplateKind {
   /// Stacked fraction `□/□`.
   fraction,
 
+  /// Mixed fraction `□ □/□` with the caret in the whole part.
+  mixedFraction,
+
   /// Empty superscript `x^□`.
   power,
 
@@ -38,6 +41,12 @@ enum TemplateKind {
 
   /// `∫` with bounds and integrand.
   integral,
+
+  /// `Σ` from a first to a last whole number.
+  summation,
+
+  /// `Π` from a first to a last whole number.
+  product,
 
   /// `d/dx(□)` at `x = □`.
   derivative,

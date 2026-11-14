@@ -58,9 +58,10 @@ Future<ProviderContainer> pumpCalculator(
   return container;
 }
 
-/// Lets the in-place evaluator, timers and short animations finish.
+/// Lets the in-place evaluator, timers and short animations (the display
+/// card takes 220 ms to fold) finish.
 Future<void> settle(WidgetTester tester) async {
-  for (var i = 0; i < 4; i++) {
+  for (var i = 0; i < 6; i++) {
     await tester.pump(const Duration(milliseconds: 60));
   }
 }

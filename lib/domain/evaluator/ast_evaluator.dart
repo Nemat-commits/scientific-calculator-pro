@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:decimal/decimal.dart';
 import 'package:rational/rational.dart';
 
@@ -37,8 +39,10 @@ final class AstEvaluator {
     this.context = const MathContext(),
     Map<String, CalcValue>? variables,
     CancellationToken? token,
+    math.Random? random,
   })  : variables = variables ?? const <String, CalcValue>{},
-        token = token ?? CancellationToken.none;
+        token = token ?? CancellationToken.none,
+        _random = random ?? math.Random();
 
   final MathContext context;
 
@@ -47,6 +51,9 @@ final class AstEvaluator {
 
   final CancellationToken token;
 
+  /// Source of `Rand`.
+  final math.Random _random;
+
   final Expando<String> _displayOverrides = Expando<String>('display');
 
   static final Rational _hundred = Rational.fromInt(100);
@@ -54,10 +61,17 @@ final class AstEvaluator {
   static final BigInt _b1 = BigInt.one;
   static final RegExp _decimalLiteral = RegExp(r'^(\d+\.?\d*|\.\d+)(E[+-]?\d+)?$');
 
-  /// Results of the numerical methods (`∫`, `d/dx`) of the running
-  /// evaluation with the distance each may be off by - those computed once,
-  /// outside the body of another numerical method.
-  final Map<AstNode, (Decimal, Decimal)> _numerical = Map<AstNode, (Decimal, Decimal)>.identity();
+  /// Largest number of terms of a `Σ` or `Π`.
+  static final BigInt maxSeriesTerms = BigInt.from(10000000);
+
+  /// What the first pass of [_settled] got at each node that does not give
+  /// the same answer twice: the result of a numerical method (`∫`, `d/dx`)
+  /// with the distance it may be off by, or a random number. Only what was
+  /// computed outside the body of a numerical method is kept. The term of a
+  /// `Σ` or `Π` visits its nodes once per index, hence a list per node; every
+  /// pass reads it from the start ([_cursor]).
+  final Map<AstNode, List<(Decimal, Decimal)>> _numerical = Map<AstNode, List<(Decimal, Decimal)>>.identity();
+  final Map<AstNode, int> _cursor = Map<AstNode, int>.identity();
 
   /// Whether the running evaluation used a value that is not good to the
   /// full working precision (`∫`, `d/dx`, a non-integer factorial).
@@ -106,6 +120,7 @@ final class AstEvaluator {
   /// arithmetic around them.
   CalcValue _settled(CalcValue Function() run) {
     _numerical.clear();
+    _cursor.clear();
     _approximated = false;
     _sampling = 0;
     _nudging = false;
@@ -113,6 +128,7 @@ final class AstEvaluator {
     if (!_approximated || _displayOverrides[value] != null) return value;
     CalcValue? nudged;
     _nudging = true;
+    _cursor.clear();
     try {
       nudged = run();
     } on CancelledEvaluationError {
@@ -164,11 +180,32 @@ final class AstEvaluator {
     return digits < 1 ? Dec.zero : Dec.round(value, digits);
   }
 
-  /// Second pass: the recorded result of [node], moved by its error bound.
-  CalcValue? _replayed(AstNode node) {
+  /// Second pass: what the first one recorded for this visit of [node].
+  (Decimal, Decimal)? _recorded(AstNode node) {
     if (!_nudging || _sampling > 0) return null;
     final known = _numerical[node];
+    final at = _cursor[node] ?? 0;
+    if (known == null || at >= known.length) return null;
+    _cursor[node] = at + 1;
+    return known[at];
+  }
+
+  /// Second pass: the recorded result of [node], moved by its error bound.
+  CalcValue? _replayed(AstNode node) {
+    final known = _recorded(node);
     return known == null ? null : _dv(Dec.add(known.$1, known.$2));
+  }
+
+  /// `Rand`: a random number from 0 up to, but not including, 1, with ten
+  /// decimals. Every `Rand` of an expression is a number of its own; the
+  /// second pass gets the numbers of the first one again.
+  CalcValue _randomNumber(AstNode node) {
+    final known = _recorded(node);
+    if (known != null) return DecimalVal(known.$1);
+    final digits = '${_random.nextInt(100000)}'.padLeft(5, '0') + '${_random.nextInt(100000)}'.padLeft(5, '0');
+    final value = Dec.parse('0.$digits');
+    if (_sampling == 0 && !_nudging) (_numerical[node] ??= <(Decimal, Decimal)>[]).add((value, Dec.zero));
+    return DecimalVal(value);
   }
 
   /// Runs a numerical [method] and records its result and error bound.
@@ -182,7 +219,7 @@ final class AstEvaluator {
       _sampling--;
     }
     if (_sampling == 0 && !_nudging) {
-      _numerical[node] = (value, bound);
+      (_numerical[node] ??= <(Decimal, Decimal)>[]).add((value, bound));
       if (!Dec.isZero(bound)) _approximated = true;
     }
     return _dv(value);
@@ -207,7 +244,7 @@ final class AstEvaluator {
       case NumberNode(:final literal):
         return _literal(literal);
       case ConstantNode(:final name):
-        return _constant(name);
+        return name == 'Rand' ? _randomNumber(node) : _constant(name);
       case VariableNode(:final name):
         final v = scope?.lookup(name) ?? variables[name];
         if (v == null) throw UndefinedVariableError('Variable $name has no value');
@@ -255,6 +292,22 @@ final class AstEvaluator {
             onUncertainty: report,
           ),
         );
+      case SeriesNode(:final lower, :final upper, :final term, :final variable, :final isProduct):
+        final sign = isProduct ? 'Π' : 'Σ';
+        final first = integerOf(_eval(lower, scope)), last = integerOf(_eval(upper, scope));
+        if (first == null || last == null) {
+          throw DomainError('$sign counts in whole numbers: $variable must start and end at one');
+        }
+        if (last - first >= maxSeriesTerms) throw DomainError('$sign has too many terms');
+        // From a first value above the last one nothing is added or
+        // multiplied: the empty sum is 0, the empty product 1.
+        CalcValue total = isProduct ? Values.one : Values.zero;
+        for (var k = first; k <= last; k += _b1) {
+          token.tick();
+          final value = _eval(term, _Scope(variable, Values.ofBigInt(k), scope));
+          total = isProduct ? multiply(total, value) : add(total, value);
+        }
+        return total;
       case IntegralNode(:final lower, :final upper, :final integrand, :final variable):
         final replayed = _replayed(node);
         if (replayed != null) return replayed;
@@ -466,6 +519,16 @@ final class AstEvaluator {
     return _dv(Dec.sub(da, Dec.mul(db, q, 1000)));
   }
 
+  /// `r∠θ`: the complex number with modulus [modulus] and argument [angle],
+  /// the angle in the current angle unit.
+  CalcValue polar(CalcValue modulus, CalcValue angle) {
+    final r = _real(modulus, 'The modulus in front of ∠');
+    final theta = _real(angle, 'The angle behind ∠');
+    final cos = Transcendental.cos(theta, context.angleUnit, token: token).value;
+    final sin = Transcendental.sin(theta, context.angleUnit, token: token).value;
+    return _cv(ComplexVal(Dec.mul(r, cos), Dec.mul(r, sin)));
+  }
+
   /// Any binary operator.
   CalcValue binary(BinaryOp op, CalcValue l, CalcValue r) => switch (op) {
         BinaryOp.add => add(l, r),
@@ -474,6 +537,7 @@ final class AstEvaluator {
         BinaryOp.divide => divide(l, r),
         BinaryOp.power => power(l, r),
         BinaryOp.modulo => modulo(l, r),
+        BinaryOp.polar => polar(l, r),
         BinaryOp.bitAnd => BaseN.and(_bits(l), _bits(r)),
         BinaryOp.bitOr => BaseN.or(_bits(l), _bits(r)),
         BinaryOp.bitXor => BaseN.xor(_bits(l), _bits(r)),

@@ -2,7 +2,7 @@
 ///
 /// An expression is an [EditorSequence] of [EditorNode]s. Leaf nodes are
 /// [AtomNode]s; composite nodes (fractions, powers, roots, function calls,
-/// integrals, derivatives) own further sequences ("slots").
+/// integrals, sums, products, derivatives) own further sequences ("slots").
 library;
 
 /// Role of an [AtomNode].
@@ -19,6 +19,23 @@ enum AtomKind {
   unaryPrefix,
   paren,
   separator,
+}
+
+/// What a [CalculusIntegralNode] does with its body between the two bounds.
+enum BoundedOperator {
+  /// `∫`: the definite integral over `[lower, upper]`.
+  integral('∫'),
+
+  /// `Σ`: the sum of the body for every whole number from lower to upper.
+  sum('Σ'),
+
+  /// `Π`: the product of the body for every whole number from lower to upper.
+  product('Π');
+
+  const BoundedOperator(this.symbol);
+
+  /// The sign of the operator, also its lexeme in the linear form.
+  final String symbol;
 }
 
 /// An ordered run of nodes with a stable identity.
@@ -46,6 +63,23 @@ class EditorSequence {
   bool get isEmpty => children.isEmpty;
   bool get isNotEmpty => children.isNotEmpty;
   int get length => children.length;
+
+  /// Number of `(` typed into this sequence that have no matching `)` yet.
+  /// They are closed implicitly where the sequence ends, which the display
+  /// shows as ghost parentheses.
+  int get unclosedParentheses {
+    var open = 0;
+    for (final node in children) {
+      if (node is AtomNode && node.kind == AtomKind.paren) {
+        if (node.text == '(') {
+          open++;
+        } else if (open > 0) {
+          open--;
+        }
+      }
+    }
+    return open;
+  }
 
   /// Same identity, different content.
   EditorSequence withChildren(List<EditorNode> newChildren) =>
@@ -100,7 +134,7 @@ sealed class EditorNode {
         final kind = AtomKind.values.firstWhere((k) => k.name == json['k'], orElse: () => AtomKind.digit);
         return AtomNode(json['x'] as String? ?? '', kind);
       case 'frac':
-        return FractionNode(numerator: seq('n'), denominator: seq('d'));
+        return FractionNode(whole: json['w'] == null ? null : seq('w'), numerator: seq('n'), denominator: seq('d'));
       case 'pow':
         return PowerNode(exponent: seq('e'));
       case 'root':
@@ -119,6 +153,8 @@ sealed class EditorNode {
           upperBound: seq('hi'),
           integrand: seq('f'),
           dummyVariable: json['v'] as String? ?? 'x',
+          operator:
+              BoundedOperator.values.firstWhere((o) => o.name == json['op'], orElse: () => BoundedOperator.integral),
         );
       case 'diff':
         return DerivativeEditorNode(body: seq('f'), evalPoint: seq('at'), dummyVariable: json['v'] as String? ?? 'x');
@@ -144,12 +180,17 @@ final class AtomNode extends EditorNode {
 }
 
 final class FractionNode extends EditorNode {
+  /// The whole part of a mixed fraction (`2` in `2 1/3`); `null` for a plain
+  /// fraction. The value of a mixed fraction is `whole + numerator/denominator`.
+  final EditorSequence? whole;
   final EditorSequence numerator;
   final EditorSequence denominator;
-  const FractionNode({required this.numerator, required this.denominator});
+  const FractionNode({this.whole, required this.numerator, required this.denominator});
+
+  bool get isMixed => whole != null;
 
   @override
-  String toString() => 'frac($numerator,$denominator)';
+  String toString() => whole == null ? 'frac($numerator,$denominator)' : 'mixed($whole,$numerator,$denominator)';
 }
 
 final class PowerNode extends EditorNode {
@@ -178,20 +219,26 @@ final class FunctionCallEditorNode extends EditorNode {
   String toString() => '$functionName(${argSlots.join(',')})';
 }
 
+/// A body between a lower and an upper bound over the variable
+/// [dummyVariable]: the definite integral, and the sum `Σ` and product `Π`
+/// over whole numbers (see [operator]).
 final class CalculusIntegralNode extends EditorNode {
   final EditorSequence lowerBound;
   final EditorSequence upperBound;
   final EditorSequence integrand;
   final String dummyVariable;
+  final BoundedOperator operator;
   const CalculusIntegralNode({
     required this.lowerBound,
     required this.upperBound,
     required this.integrand,
     this.dummyVariable = 'x',
+    this.operator = BoundedOperator.integral,
   });
 
   @override
-  String toString() => 'int($lowerBound,$upperBound,$integrand)';
+  String toString() =>
+      '${operator == BoundedOperator.integral ? 'int' : operator.name}($lowerBound,$upperBound,$integrand)';
 }
 
 final class DerivativeEditorNode extends EditorNode {
@@ -220,7 +267,11 @@ extension EditorNodeStructure on EditorNode {
   /// Child sequences in reading (cursor traversal) order.
   List<EditorSequence> get slots => switch (this) {
         AtomNode() => const <EditorSequence>[],
-        FractionNode(:final numerator, :final denominator) => <EditorSequence>[numerator, denominator],
+        FractionNode(:final whole, :final numerator, :final denominator) => <EditorSequence>[
+            if (whole != null) whole,
+            numerator,
+            denominator
+          ],
         PowerNode(:final exponent) => <EditorSequence>[exponent],
         RootNode(:final degree, :final radicand) => <EditorSequence>[degree, radicand],
         FunctionCallEditorNode(:final argSlots) => argSlots,
@@ -241,16 +292,19 @@ extension EditorNodeStructure on EditorNode {
   /// A copy of the node that owns [newSlots] (same order as [slots]).
   EditorNode withSlots(List<EditorSequence> newSlots) => switch (this) {
         AtomNode() => this,
-        FractionNode() => FractionNode(numerator: newSlots[0], denominator: newSlots[1]),
+        FractionNode(:final whole) => whole == null
+            ? FractionNode(numerator: newSlots[0], denominator: newSlots[1])
+            : FractionNode(whole: newSlots[0], numerator: newSlots[1], denominator: newSlots[2]),
         PowerNode() => PowerNode(exponent: newSlots[0]),
         RootNode() => RootNode(degree: newSlots[0], radicand: newSlots[1]),
         FunctionCallEditorNode(:final functionName) =>
           FunctionCallEditorNode(functionName: functionName, argSlots: List<EditorSequence>.unmodifiable(newSlots)),
-        CalculusIntegralNode(:final dummyVariable) => CalculusIntegralNode(
+        CalculusIntegralNode(:final dummyVariable, :final operator) => CalculusIntegralNode(
             lowerBound: newSlots[0],
             upperBound: newSlots[1],
             integrand: newSlots[2],
             dummyVariable: dummyVariable,
+            operator: operator,
           ),
         DerivativeEditorNode(:final dummyVariable) =>
           DerivativeEditorNode(body: newSlots[0], evalPoint: newSlots[1], dummyVariable: dummyVariable),
@@ -258,8 +312,9 @@ extension EditorNodeStructure on EditorNode {
 
   Map<String, Object?> toJson() => switch (this) {
         AtomNode(:final text, :final kind) => <String, Object?>{'t': 'a', 'x': text, 'k': kind.name},
-        FractionNode(:final numerator, :final denominator) => <String, Object?>{
+        FractionNode(:final whole, :final numerator, :final denominator) => <String, Object?>{
             't': 'frac',
+            if (whole != null) 'w': whole.toJson(),
             'n': numerator.toJson(),
             'd': denominator.toJson()
           },
@@ -274,13 +329,20 @@ extension EditorNodeStructure on EditorNode {
             'name': functionName,
             'args': <Object?>[for (final a in argSlots) a.toJson()],
           },
-        CalculusIntegralNode(:final lowerBound, :final upperBound, :final integrand, :final dummyVariable) =>
+        CalculusIntegralNode(
+          :final lowerBound,
+          :final upperBound,
+          :final integrand,
+          :final dummyVariable,
+          :final operator
+        ) =>
           <String, Object?>{
             't': 'int',
             'lo': lowerBound.toJson(),
             'hi': upperBound.toJson(),
             'f': integrand.toJson(),
             'v': dummyVariable,
+            if (operator != BoundedOperator.integral) 'op': operator.name,
           },
         DerivativeEditorNode(:final body, :final evalPoint, :final dummyVariable) => <String, Object?>{
             't': 'diff',

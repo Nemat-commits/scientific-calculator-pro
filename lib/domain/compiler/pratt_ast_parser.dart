@@ -11,6 +11,7 @@ import 'tree_to_token_lowerer.dart';
 /// | 2-8   | `or`, `xor`, `and`, `<<` `>>` (Base-N)      |
 /// | 10    | `+` `−`                                     |
 /// | 20    | `×` `÷` `mod`, ordinary implied `×`         |
+/// | 25    | `∠` (polar form `r∠θ`)                      |
 /// | 30    | tight implied multiplication (`2π`)         |
 /// | 35    | prefix `−` / `+` / `not`                    |
 /// | 45    | inline radical `√`                          |
@@ -84,6 +85,7 @@ final class PrattAstParser {
       '×' || '*' || '·' => (BinaryOp.multiply, 20, 21),
       '÷' || '/' => (BinaryOp.divide, 20, 21),
       'mod' => (BinaryOp.modulo, 20, 21),
+      '∠' => (BinaryOp.polar, 25, 26),
       '^' => (BinaryOp.power, 50, 49),
       'or' => (BinaryOp.bitOr, 2, 3),
       'xor' => (BinaryOp.bitXor, 4, 5),
@@ -157,14 +159,17 @@ final class PrattAstParser {
         _closeGroup();
         return DerivativeNode(body, point, variable: t.variable ?? 'x');
       case TokenKind.integral:
+        final series = t.text == 'Σ' || t.text == 'Π';
         _expect(TokenKind.leftParen, '"("');
-        final lower = _slot('the lower bound');
+        final lower = _slot(series ? 'the first value of ${t.variable ?? 'x'}' : 'the lower bound');
         _expect(TokenKind.comma, '","');
-        final upper = _slot('the upper bound');
+        final upper = _slot(series ? 'the last value of ${t.variable ?? 'x'}' : 'the upper bound');
         _expect(TokenKind.comma, '","');
-        final integrand = _slot('the integrand');
+        final body = _slot(series ? 'the term of ${t.text}' : 'the integrand');
         _closeGroup();
-        return IntegralNode(lower, upper, integrand, variable: t.variable ?? 'x');
+        return series
+            ? SeriesNode(lower, upper, body, variable: t.variable ?? 'x', isProduct: t.text == 'Π')
+            : IntegralNode(lower, upper, body, variable: t.variable ?? 'x');
       case TokenKind.postfix || TokenKind.rightParen || TokenKind.comma || TokenKind.equals:
         break;
     }

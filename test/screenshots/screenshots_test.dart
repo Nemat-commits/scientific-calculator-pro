@@ -15,7 +15,11 @@ import 'package:modern_scientific_calculator/domain/models/editor_node.dart';
 import 'package:modern_scientific_calculator/domain/models/math_context.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_notifier.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/advanced_lab_tab_view.dart';
+import 'package:modern_scientific_calculator/presentation/tabs/history_vault_tab_view.dart';
+import 'package:modern_scientific_calculator/presentation/tabs/scientific_tab_view.dart';
+import 'package:modern_scientific_calculator/presentation/tabs/standard_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/unit_converter_tab_view.dart';
+import 'package:modern_scientific_calculator/presentation/widgets/calc_prompt.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/lab_widgets.dart';
 
 import '../support/test_app.dart';
@@ -97,6 +101,16 @@ void main() {
 
     await capture(tester, '01_portrait_empty');
 
+    // The quick scientific keys, a parenthesis that is still open (ghost
+    // parenthesis in the display, counter on the key) and a value in memory.
+    await tapKeys(
+        StandardTabView, <String>['Show the scientific keys', '2', '×', 'Parenthesis', '3', '+', 'sin', '4', '5']);
+    await tester.tap(keyIn(StandardTabView, 'M+').hitTestable().first);
+    await capture(tester, '02_portrait_quick_keys');
+    await tester.tap(keyIn(StandardTabView, 'MC').hitTestable().first);
+    await tapKeys(StandardTabView, <String>['Hide the scientific keys', 'All clear']);
+    await settle(tester);
+
     typeQuadraticFormula(n);
     await capture(tester, '02_portrait_standard_editing');
 
@@ -153,6 +167,76 @@ void main() {
     n.press(const ClearKey());
     n.pasteText('1+2+3+4+5+6+7+8+9+10+11+12+13+14+15+16+17+18+19+20+21+22+23+24+25');
     await capture(tester, '05_portrait_long_expression');
+
+    // Σ x² from 1 to 10, plus a mixed fraction times a number in polar form.
+    n.press(const ClearKey());
+    for (final key in <CalcKey>[
+      const TemplateKey(TemplateKind.summation),
+      digit('1'),
+      right,
+      digit('1'),
+      digit('0'),
+      right,
+      const AtomKey('x', AtomKind.variable),
+      const TemplateKey(TemplateKind.square),
+      right,
+      right,
+      op('+'),
+      const TemplateKey(TemplateKind.mixedFraction),
+      digit('2'),
+      right,
+      digit('1'),
+      right,
+      digit('3'),
+      right,
+      op('×'),
+      digit('2'),
+      op('∠'),
+      digit('3'),
+      digit('0'),
+    ]) {
+      n.press(key);
+    }
+    await capture(tester, '05_portrait_sum_mixed_polar');
+    await commit(tester, container);
+    await capture(tester, '05_portrait_sum_mixed_polar_result');
+    // The same with INV on: the keys it changes are amber.
+    n.toggleInverse();
+    await capture(tester, '05_portrait_sum_mixed_polar_inv');
+    n.toggleInverse();
+    n.toggleComplex(); // ∠ had switched it on
+
+    // CALC: x² + 3y for x = 5 and y = 2. The formula stays in the editor.
+    n.press(const ClearKey());
+    for (final key in <CalcKey>[
+      const AtomKey('x', AtomKind.variable),
+      const TemplateKey(TemplateKind.square),
+      op('+'),
+      digit('3'),
+      const AtomKey('y', AtomKind.variable),
+    ]) {
+      n.press(key);
+    }
+    await settle(tester);
+    await tapKeys(ScientificTabView, <String>['CALC, evaluate with values for the variables']);
+    await settle(tester);
+    await tapKeys(CalcPrompt, <String>['5', '⏎', '2']);
+    await capture(tester, '05_portrait_calc_prompt');
+    await tapText('Evaluate');
+    await capture(tester, '05_portrait_calc_result');
+
+    // Engineering notation, and the row of further functions.
+    n.press(const ClearKey());
+    n.pasteText('12345×67');
+    await commit(tester, container);
+    n.toggleEngineering();
+    await capture(tester, '05_portrait_engineering');
+    n.toggleEngineering();
+    await tapKeys(ScientificTabView, <String>['Show more functions']);
+    await capture(tester, '05_portrait_more_functions');
+    await tapKeys(ScientificTabView, <String>['Hide the extra functions']);
+    await settle(tester);
+
     n.press(const ClearKey());
     n.pasteText('x^2-3x+2');
 
@@ -186,6 +270,11 @@ void main() {
     await settle(tester);
     await tapKeys(UnitConverterTabView, <String>['2', '.', '5']);
     await capture(tester, '08_portrait_convert');
+    // The data units: 1 MB in the units of both families.
+    await tapText('Data');
+    await tapText('MB');
+    await tapKeys(UnitConverterTabView, <String>['Clear', '1']);
+    await capture(tester, '08_portrait_convert_data');
     // "Constants" is the last chip of a horizontally scrolling row.
     await tester.drag(
       find.descendant(of: find.byType(UnitConverterTabView), matching: find.byType(ChoiceChips)),
@@ -204,7 +293,16 @@ void main() {
     n.setActiveTab(4);
     await capture(tester, '09_portrait_history');
 
+    await tester.longPress(find.byType(HistoryTile).at(2));
+    await capture(tester, '09_portrait_history_detail');
+    await tapText('Close');
+
+    // The folded display opened in place.
+    await tester.tap(find.bySemanticsLabel('Expand display'));
+    await capture(tester, '09_portrait_history_display_open');
+
     n.setActiveTab(0);
+    await settle(tester);
     await tester.tap(find.bySemanticsLabel('Open quick history'));
     await capture(tester, '09_portrait_quick_history');
     await tapText('Close');
@@ -212,6 +310,12 @@ void main() {
     n.pasteText('1/0');
     await commit(tester, container);
     await capture(tester, '10_portrait_error');
+
+    // The hint that explains a mode when its badge is tapped.
+    n.press(const ClearKey());
+    await tester.tap(find.bySemanticsLabel('Implied multiplication: TI'));
+    await capture(tester, '10_portrait_mode_hint');
+    await tester.pump(const Duration(seconds: 2));
   }, skip: !enabled);
 
   testWidgets('landscape workbench', (tester) async {
@@ -231,7 +335,44 @@ void main() {
 
   testWidgets('small phone', (tester) async {
     final container = await start(tester, const Size(360, 640));
-    typeQuadraticFormula(container.read(calculatorProvider.notifier));
+    final n = container.read(calculatorProvider.notifier);
+    typeQuadraticFormula(n);
     await capture(tester, '14_small_phone');
+
+    n.setActiveTab(1);
+    await capture(tester, '14_small_phone_scientific');
+
+    // Base-N: all four bases fit once the display is folded.
+    n.setActiveTab(2);
+    await settle(tester);
+    await tester.tap(find.descendant(of: find.byType(AdvancedLabTabView), matching: find.text('Base-N')).first);
+    await settle(tester);
+    for (final name in <String>['F', 'F', 'AND', '3', 'C']) {
+      await tester.tap(keyIn(AdvancedLabTabView, name).hitTestable().first);
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    await capture(tester, '15_small_phone_basen');
+
+    // Converter: an empty field reads 0 and converts as 0.
+    n.setActiveTab(3);
+    await settle(tester);
+    await tester.tap(find.descendant(of: find.byType(UnitConverterTabView), matching: find.text('Temperature')).first);
+    await settle(tester);
+    await tester.tap(keyIn(UnitConverterTabView, 'Clear').hitTestable().first);
+    await capture(tester, '16_small_phone_convert_zero');
+
+    // Narrow lines: the step of a data unit stands above its name, and a long name takes two lines.
+    Future<void> category(String name) async {
+      final chip = find.descendant(of: find.byType(UnitConverterTabView), matching: find.text(name));
+      await tester.ensureVisible(chip);
+      await settle(tester);
+      await tester.tap(chip);
+      await settle(tester);
+    }
+
+    await category('Data');
+    await capture(tester, '16_small_phone_convert_data');
+    await category('Power');
+    await capture(tester, '16_small_phone_convert_power');
   }, skip: !enabled);
 }

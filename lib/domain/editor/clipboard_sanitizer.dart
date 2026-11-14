@@ -7,7 +7,7 @@ import '../models/editor_node.dart';
 ///   (`×`/`*`/`·`, `÷`/`/`, `−`/`-`/`–`),
 /// * superscripts (`²`, `³`, `⁻¹`) and `^` become [PowerNode]s,
 /// * `√`, `∛`, `sqrt(…)`, `cbrt(…)`, `root(n, x)` become [RootNode]s,
-/// * `name(…)`, `|…|`, `∫(a, b, f)` and `d/dx(f, x=a)` become the matching
+/// * `name(…)`, `|…|`, `∫(a, b, f)`, `Σ(a, b, f)`, `Π(a, b, f)` and `d/dx(f, x=a)` become the matching
 ///   templates,
 /// * anything that is not part of a formula is dropped.
 abstract final class ClipboardSanitizer {
@@ -62,6 +62,8 @@ abstract final class ClipboardSanitizer {
     'root',
     'int',
     'diff',
+    'sum',
+    'prod',
   };
 
   static const Map<String, String> _aliases = <String, String>{
@@ -291,6 +293,16 @@ final class _Scanner {
         skipSpaces();
         if (cur == '(') return <EditorNode>[integral()];
         return null;
+      case 'Σ' || '∑':
+        skipSpaces();
+        if (cur == '(') return <EditorNode>[integral(BoundedOperator.sum)];
+        return null;
+      case 'Π' || '∏':
+        skipSpaces();
+        if (cur == '(') return <EditorNode>[integral(BoundedOperator.product)];
+        return null;
+      case '∠':
+        return const <EditorNode>[AtomNode('∠', AtomKind.binaryOp)];
       case '<' || '>':
         if (programmer && cur == c) {
           pos++;
@@ -447,7 +459,8 @@ final class _Scanner {
     }
   }
 
-  EditorNode integral() {
+  /// `∫(a, b, f)`, `Σ(first, last, term)` or `Π(…)`; the cursor is on `(`.
+  EditorNode integral([BoundedOperator operator = BoundedOperator.integral]) {
     final args = arguments();
     List<EditorNode> arg(int i) => i < args.length ? args[i] : const <EditorNode>[];
     var variable = 'x';
@@ -459,6 +472,7 @@ final class _Scanner {
       upperBound: EditorSequence.fresh(arg(1)),
       integrand: EditorSequence.fresh(arg(2)),
       dummyVariable: variable,
+      operator: operator,
     );
   }
 
@@ -557,7 +571,11 @@ final class _Scanner {
 
     bool isWordAt(int from) {
       final lower = chars.sublist(from, end).join().toLowerCase();
-      return lower.startsWith('ans') || lower.startsWith('pi') || lower.startsWith('phi') || isMatrixAt(from);
+      return lower.startsWith('ans') ||
+          lower.startsWith('pi') ||
+          lower.startsWith('phi') ||
+          lower.startsWith('rand') ||
+          isMatrixAt(from);
     }
 
     // Prose ("price", "total") is not part of a formula: a run of four or
@@ -604,6 +622,9 @@ final class _Scanner {
       } else if (lower.startsWith('ans')) {
         out.add(const AtomNode('Ans', AtomKind.variable));
         p += 3;
+      } else if (lower.startsWith('rand')) {
+        out.add(const AtomNode('Rand', AtomKind.constant));
+        p += 4;
       } else if (lower.startsWith('phi')) {
         out.add(const AtomNode('φ', AtomKind.constant));
         p += 3;
@@ -629,7 +650,13 @@ final class _Scanner {
   /// A call of [name]; the cursor is on `(`.
   EditorNode _call(String name) {
     if (name == 'int') return integral();
+    if (name == 'sum') return integral(BoundedOperator.sum);
+    if (name == 'prod') return integral(BoundedOperator.product);
     if (name == 'diff') return derivative('x');
+    if (name == 'rand') {
+      arguments(); // rand() is written with empty parentheses elsewhere
+      return const AtomNode('Rand', AtomKind.constant);
+    }
     final args = arguments();
     List<EditorNode> arg(int i) => i < args.length ? args[i] : const <EditorNode>[];
     switch (name) {

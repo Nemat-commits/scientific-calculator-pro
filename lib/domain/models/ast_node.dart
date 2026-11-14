@@ -12,6 +12,9 @@ enum BinaryOp {
   divide,
   power,
   modulo,
+
+  /// `r∠θ`: modulus and argument of a complex number.
+  polar,
   bitAnd,
   bitOr,
   bitXor,
@@ -36,7 +39,8 @@ final class NumberNode extends AstNode {
   String toString() => literal;
 }
 
-/// A named constant (`π`, `e`, `i`, CODATA symbols).
+/// A named constant (`π`, `e`, `i`, CODATA symbols) or `Rand`, a new random
+/// number each time it is evaluated.
 final class ConstantNode extends AstNode {
   const ConstantNode(this.name);
   final String name;
@@ -104,6 +108,20 @@ final class DerivativeNode extends AstNode {
 
   @override
   String toString() => '(d/d$variable $body at $point)';
+}
+
+/// `Σ` or `Π`: the sum or the product of [term] for every whole number from
+/// [lower] to [upper].
+final class SeriesNode extends AstNode {
+  const SeriesNode(this.lower, this.upper, this.term, {this.variable = 'x', this.isProduct = false});
+  final AstNode lower;
+  final AstNode upper;
+  final AstNode term;
+  final String variable;
+  final bool isProduct;
+
+  @override
+  String toString() => '(${isProduct ? 'Π' : 'Σ'} $variable=$lower..$upper $term)';
 }
 
 /// Definite integral of `integrand` over `[lower, upper]`.

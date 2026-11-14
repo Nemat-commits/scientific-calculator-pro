@@ -80,14 +80,21 @@ class MathLayout {
 
 /// Recursive layout of the editor tree into boxes with a common baseline.
 class MathLayoutEngine {
-  MathLayoutEngine({required this.fontSize, this.activeSlotId, this.textScaler = TextScaler.noScaling})
-      : _minFont = fontSize * 0.5;
+  MathLayoutEngine({
+    required this.fontSize,
+    this.activeSlotId,
+    this.textScaler = TextScaler.noScaling,
+    this.placeholder,
+  }) : _minFont = fontSize * 0.5;
 
   /// Font size of the root line.
   final double fontSize;
 
   /// Slot that holds the caret (its empty placeholder is highlighted).
   final String? activeSlotId;
+
+  /// Muted text an empty expression line shows in front of the caret.
+  final String? placeholder;
   final TextScaler textScaler;
   final double _minFont;
   final List<SlotGeometry> _slots = <SlotGeometry>[];
@@ -145,9 +152,13 @@ class MathLayoutEngine {
       final node = children[i];
       final child = switch (node) {
         AtomNode() => _atom(node, i == 0 ? null : children[i - 1], f),
-        FractionNode(:final numerator, :final denominator) => _FractionBox(
-            _sequence(numerator, _scaled(f, 0.85), depth + 1),
-            _sequence(denominator, _scaled(f, 0.85), depth + 1),
+        FractionNode(:final whole, :final numerator, :final denominator) => _mixed(
+            whole == null ? null : _sequence(whole, f, depth + 1),
+            _FractionBox(
+              _sequence(numerator, _scaled(f, 0.85), depth + 1),
+              _sequence(denominator, _scaled(f, 0.85), depth + 1),
+              f,
+            ),
             f,
           ),
         PowerNode(:final exponent) =>
@@ -158,14 +169,29 @@ class MathLayoutEngine {
             f,
           ),
         FunctionCallEditorNode(:final functionName, :final argSlots) => _call(functionName, argSlots, f, depth),
-        CalculusIntegralNode(:final lowerBound, :final upperBound, :final integrand, :final dummyVariable) =>
-          _IntegralBox(
-            _sequence(lowerBound, _scaled(f, 0.62), depth + 1),
-            _sequence(upperBound, _scaled(f, 0.62), depth + 1),
-            _sequence(integrand, f, depth + 1),
-            _glyphs('d$dummyVariable', f, AppColors.mathFunction, padLeft: f * 0.12),
-            f,
-          ),
+        CalculusIntegralNode(
+          :final lowerBound,
+          :final upperBound,
+          :final integrand,
+          :final dummyVariable,
+          :final operator
+        ) =>
+          operator == BoundedOperator.integral
+              ? _IntegralBox(
+                  _sequence(lowerBound, _scaled(f, 0.62), depth + 1),
+                  _sequence(upperBound, _scaled(f, 0.62), depth + 1),
+                  _sequence(integrand, f, depth + 1),
+                  _glyphs('d$dummyVariable', f, AppColors.mathFunction, padLeft: f * 0.12),
+                  f,
+                )
+              : _SeriesBox(
+                  _glyphs('$dummyVariable=', _scaled(f, 0.62), AppColors.mathFunction),
+                  _sequence(lowerBound, _scaled(f, 0.62), depth + 1),
+                  _sequence(upperBound, _scaled(f, 0.62), depth + 1),
+                  _sequence(integrand, f, depth + 1),
+                  f,
+                  product: operator == BoundedOperator.product,
+                ),
         DerivativeEditorNode(:final body, :final evalPoint, :final dummyVariable) => _DerivativeBox(
             _glyphs('d', _scaled(f, 0.7), AppColors.mathFunction),
             _glyphs('d$dummyVariable', _scaled(f, 0.7), AppColors.mathFunction),
@@ -179,12 +205,32 @@ class MathLayoutEngine {
       x += child.w;
       previous = child;
     }
-    box.finish(x);
+    // Parentheses that are still open are closed where the slot ends; the
+    // ghosts show the grouping the evaluator uses.
+    final open = seq.unclosedParentheses;
+    if (open > 0) {
+      final ghost = _glyphs(')' * open, f, AppColors.mathGhost);
+      box.addGhost(ghost, x);
+      x += ghost.w;
+    }
+    final hint = placeholder;
+    box.finish(x, placeholder: depth == 0 && hint != null ? _glyphs(hint, f, AppColors.mathGhost) : null);
     return box;
+  }
+
+  /// A fraction, with the whole part of a mixed fraction in front of it.
+  _Box _mixed(_SeqBox? whole, _FractionBox fraction, double f) {
+    if (whole == null) return fraction;
+    return _GroupBox()
+      ..put(whole, 0, 0)
+      ..put(fraction, whole.w + f * 0.02, 0)
+      ..close();
   }
 
   _Box _atom(AtomNode node, EditorNode? before, double f) {
     final text = node.text;
+    // No bundled font has the angle sign: it is drawn.
+    if (text == '∠') return _AngleBox(f);
     switch (node.kind) {
       case AtomKind.digit:
         if (text == 'E') {
@@ -362,6 +408,10 @@ class _SeqBox extends _Box {
   final int depth;
   final bool active;
   final List<(_Box box, double dx)> items = <(_Box, double)>[];
+
+  /// Hints that are drawn with the content but are not part of it: the caret
+  /// never goes behind them.
+  final List<(_Box box, double dx)> ghosts = <(_Box, double)>[];
   final List<double> _carets = <double>[0];
 
   void add(_Box box, double dx) {
@@ -371,8 +421,21 @@ class _SeqBox extends _Box {
     desc = math.max(desc, box.desc);
   }
 
-  void finish(double width) {
-    if (items.isEmpty) {
+  void addGhost(_Box box, double dx) {
+    ghosts.add((box, dx));
+    asc = math.max(asc, box.asc);
+    desc = math.max(desc, box.desc);
+  }
+
+  /// [placeholder] stands in front of the caret of an empty line.
+  void finish(double width, {_Box? placeholder}) {
+    if (items.isEmpty && placeholder != null) {
+      ghosts.add((placeholder, 0));
+      w = placeholder.w + f * 0.12;
+      asc = math.max(placeholder.asc, f * 0.76);
+      desc = math.max(placeholder.desc, f * 0.22);
+      _carets[0] = placeholder.w + f * 0.06;
+    } else if (items.isEmpty) {
       w = f * 0.58;
       asc = f * 0.76;
       desc = f * 0.10;
@@ -401,12 +464,19 @@ class _SeqBox extends _Box {
     for (final (box, dx) in items) {
       box.place(px + dx, py, engine);
     }
+    for (final (box, dx) in ghosts) {
+      box.place(px + dx, py, engine);
+    }
   }
 
   @override
   void paint(Canvas canvas) {
+    for (final (box, _) in ghosts) {
+      box.paint(canvas);
+    }
     if (items.isEmpty) {
-      // The empty expression line shows just the caret.
+      // The empty expression line shows the caret, behind its placeholder
+      // if it has one.
       if (depth == 0) return;
       final rect = Rect.fromLTRB(x + f * 0.06, y - f * 0.70, x + w - f * 0.06, y + f * 0.04);
       final radius = Radius.circular(f * 0.10);
@@ -571,6 +641,87 @@ class _IntegralBox extends _GroupBox {
   }
 }
 
+/// `Σ` or `Π` with the first value of the variable below the sign, the last
+/// one above it and the term in parentheses behind it.
+class _SeriesBox extends _GroupBox {
+  _SeriesBox(_TextBox label, _SeqBox lower, _SeqBox upper, _SeqBox term, this.f, {required this.product}) {
+    final gap = f * 0.07;
+    // The sign grows with a tall term (a fraction), within limits.
+    final signHeight = math.min(f * 1.9, math.max(f * 1.15, (term.asc + term.desc) * 0.78));
+    signWidth = signHeight * 0.7;
+    top = _axis(f) + signHeight / 2;
+    bottom = signHeight / 2 - _axis(f);
+    final below = label.w + lower.w;
+    final column = math.max(signWidth, math.max(upper.w, below));
+    centre = column / 2;
+    put(upper, centre - upper.w / 2, -(top + gap + upper.desc * 0.6));
+    final drop = bottom + gap + math.max(label.asc, lower.asc) * 0.82;
+    put(label, centre - below / 2, drop);
+    put(lower, centre - below / 2 + label.w, drop);
+    put(_ParenBox(term, f), column + f * 0.08, 0);
+    close(extraRight: f * 0.04);
+    asc = math.max(asc, top + f * 0.03);
+    desc = math.max(desc, bottom + f * 0.03);
+  }
+
+  final double f;
+  final bool product;
+  late final double signWidth;
+  late final double centre;
+  late final double top;
+  late final double bottom;
+
+  @override
+  void paint(Canvas canvas) {
+    final left = x + centre - signWidth / 2, right = x + centre + signWidth / 2;
+    final t = y - top, b = y + bottom;
+    final path = Path();
+    if (product) {
+      final inset = signWidth * 0.17;
+      path
+        ..moveTo(left, t)
+        ..lineTo(right, t)
+        ..moveTo(left + inset, t)
+        ..lineTo(left + inset, b)
+        ..moveTo(right - inset, t)
+        ..lineTo(right - inset, b);
+    } else {
+      final serif = f * 0.13;
+      path
+        ..moveTo(right, t + serif)
+        ..lineTo(right, t)
+        ..lineTo(left, t)
+        ..lineTo(left + signWidth * 0.52, (t + b) / 2)
+        ..lineTo(left, b)
+        ..lineTo(right, b)
+        ..lineTo(right, b - serif);
+    }
+    canvas.drawPath(path, _stroke(AppColors.mathOperator, math.max(1.2, f * 0.065)));
+    super.paint(canvas);
+  }
+}
+
+/// The angle sign of the polar form `r∠θ`.
+class _AngleBox extends _Box {
+  _AngleBox(this.f) {
+    w = f * 0.86;
+    asc = f * 0.76;
+    desc = f * 0.22;
+  }
+
+  final double f;
+
+  @override
+  void paint(Canvas canvas) {
+    final left = x + f * 0.16, right = x + w - f * 0.14;
+    final path = Path()
+      ..moveTo(right - f * 0.06, y - f * 0.56)
+      ..lineTo(left, y - f * 0.02)
+      ..lineTo(right, y - f * 0.02);
+    canvas.drawPath(path, _stroke(AppColors.mathOperator, math.max(1.2, f * 0.07)));
+  }
+}
+
 class _DerivativeBox extends _GroupBox {
   _DerivativeBox(_TextBox top, _TextBox bottom, _SeqBox body, _TextBox pointLabel, _SeqBox point, this.f) {
     // d / dx as a small stacked fraction
@@ -624,9 +775,13 @@ class MathPrintCanvas extends StatefulWidget {
     this.onTapPosition,
     this.alignment = Alignment.centerLeft,
     this.fadeColor = AppColors.cardSurface,
+    this.placeholder,
   });
 
   final EditorSequence root;
+
+  /// Muted text shown in front of the caret while the expression is empty.
+  final String? placeholder;
 
   /// Caret position; `null` renders a read-only expression.
   final CursorPath? cursor;
@@ -711,12 +866,16 @@ class _MathPrintCanvasState extends State<MathPrintCanvas> {
   MathLayout _fitted(BoxConstraints constraints, TextScaler scaler) {
     final active = widget.cursor?.sequenceId;
     final maxWidth = constraints.maxWidth, maxHeight = constraints.maxHeight;
-    final key = (widget.root, widget.fontSize, active, scaler, maxWidth, maxHeight);
+    final key = (widget.root, widget.fontSize, active, scaler, maxWidth, maxHeight, widget.placeholder);
     final cached = _layout;
     if (cached != null && _layoutKey == key) return cached;
 
-    MathLayout at(double size) =>
-        MathLayoutEngine(fontSize: size, activeSlotId: active, textScaler: scaler).layout(widget.root);
+    MathLayout at(double size) => MathLayoutEngine(
+          fontSize: size,
+          activeSlotId: active,
+          textScaler: scaler,
+          placeholder: widget.placeholder,
+        ).layout(widget.root);
     final widthFloor = widget.fontSize * MathPrintCanvas.minWidthFit;
     final heightFloor = widget.fontSize * MathPrintCanvas.minHeightFit;
     var size = widget.fontSize;

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'compiler/implicit_mul_normalizer.dart';
 import 'compiler/pratt_ast_parser.dart';
 import 'compiler/tree_to_token_lowerer.dart';
@@ -28,7 +30,8 @@ final class EvaluationResult {
   /// Canonical 34-digit display string.
   final String primary;
 
-  /// Exact fraction or engineering form, when there is one.
+  /// Another way to write the result, when there is one: the exact fraction,
+  /// the engineering form - or, in engineering notation, the plain number.
   final String? secondary;
 
   /// Linear text of the evaluated expression, e.g. `((1)/(2))+3`.
@@ -51,17 +54,18 @@ abstract final class MathEngine {
     MathContext context = const MathContext(),
     Map<String, CalcValue>? variables,
     CancellationToken? token,
+    math.Random? random,
   }) {
-    final tokens = TreeToTokenLowerer.lower(root);
+    final tokens = TreeToTokenLowerer.lower(root, programmer: context.baseN != null);
     if (tokens.isEmpty) throw const SyntaxError('Empty expression', position: 0);
     final ast = PrattAstParser.parse(ImplicitMulNormalizer.normalize(tokens, context.juxtaposition));
-    final evaluator = AstEvaluator(context: context, variables: variables, token: token);
+    final evaluator = AstEvaluator(context: context, variables: variables, token: token, random: random);
     final value = evaluator.evaluate(ast);
     final special = evaluator.displayOverrideFor(value);
     return EvaluationResult(
       value: value,
       primary: special ?? format(value, context),
-      secondary: special == null ? NumberFormatter.formatSecondary(value) : null,
+      secondary: special == null ? NumberFormatter.formatSecondary(value, notation: context.notation) : null,
       expression: TreeToTokenLowerer.toDisplayText(root),
     );
   }
@@ -72,12 +76,14 @@ abstract final class MathEngine {
     MathContext context = const MathContext(),
     Map<String, CalcValue>? variables,
     CancellationToken? token,
+    math.Random? random,
   }) =>
       evaluateSequence(
         ClipboardSanitizer.toSequence(text, radix: context.baseN?.radix ?? 10, programmer: context.baseN != null),
         context: context,
         variables: variables,
         token: token,
+        random: random,
       );
 
   /// Display string of [value] under [context].

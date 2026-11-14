@@ -16,6 +16,7 @@ class ResultText extends StatelessWidget {
     this.weight = AppWeight.medium,
     this.prefix,
     this.alignment = Alignment.centerRight,
+    this.wrap = false,
   });
 
   /// Canonical string from the number formatter (`1e-25`, `-4 + 2i`, …).
@@ -28,7 +29,21 @@ class ResultText extends StatelessWidget {
   final String? prefix;
   final Alignment alignment;
 
+  /// Breaks a long value over several lines at full size instead of
+  /// shrinking it onto one.
+  final bool wrap;
+
   static final RegExp _exponent = RegExp(r'e(-?\d+)|\s*×\s*10\^(-?\d+)');
+
+  /// Whether the read-out [secondary] should stand in front of [primary]: a
+  /// complex number leads with its short form, because both of its parts at
+  /// full length do not fit a line at a readable size.
+  static bool leadsWithSecondary(String primary, String? secondary) =>
+      secondary != null && secondary.isNotEmpty && primary.endsWith('i');
+
+  /// The read-out of a result to show where there is room for one.
+  static String lead(String primary, String? secondary) =>
+      leadsWithSecondary(primary, secondary) ? secondary! : primary;
 
   /// Splits [text] into plain runs and exponents.
   static List<(String text, bool superscript)> segments(String text) {
@@ -65,6 +80,7 @@ class ResultText extends StatelessWidget {
         else
           TextSpan(text: AppTypography.signs(text)),
     ];
+    if (wrap) return Text.rich(TextSpan(style: base, children: spans));
     return FittedBox(
       fit: BoxFit.scaleDown,
       alignment: alignment,

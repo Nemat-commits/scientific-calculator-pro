@@ -37,6 +37,7 @@ final class CalculatorSettings {
     this.juxtaposition = JuxtapositionMode.standardTi,
     this.complexEnabled = false,
     this.hapticsEnabled = true,
+    this.engineeringNotation = false,
   });
 
   final AngleUnit angleUnit;
@@ -44,17 +45,22 @@ final class CalculatorSettings {
   final bool complexEnabled;
   final bool hapticsEnabled;
 
+  /// Results are written with exponents that are multiples of three (ENG).
+  final bool engineeringNotation;
+
   CalculatorSettings copyWith({
     AngleUnit? angleUnit,
     JuxtapositionMode? juxtaposition,
     bool? complexEnabled,
     bool? hapticsEnabled,
+    bool? engineeringNotation,
   }) =>
       CalculatorSettings(
         angleUnit: angleUnit ?? this.angleUnit,
         juxtaposition: juxtaposition ?? this.juxtaposition,
         complexEnabled: complexEnabled ?? this.complexEnabled,
         hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
+        engineeringNotation: engineeringNotation ?? this.engineeringNotation,
       );
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -62,6 +68,7 @@ final class CalculatorSettings {
         'juxtaposition': juxtaposition.name,
         'complex': complexEnabled,
         'haptics': hapticsEnabled,
+        'engineering': engineeringNotation,
       };
 
   static CalculatorSettings fromJson(Map<String, Object?> json) => CalculatorSettings(
@@ -70,6 +77,7 @@ final class CalculatorSettings {
             .firstWhere((m) => m.name == json['juxtaposition'], orElse: () => JuxtapositionMode.standardTi),
         complexEnabled: json['complex'] == true,
         hapticsEnabled: json['haptics'] != false,
+        engineeringNotation: json['engineering'] == true,
       );
 }
 

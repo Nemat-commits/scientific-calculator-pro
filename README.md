@@ -1,16 +1,21 @@
 # Scientific Calculator Pro
 
 A scientific calculator for Android, written in Flutter. Expressions are typed
-and shown in two dimensions (fractions, roots, powers, integrals), numbers are
-exact fractions for as long as possible and 50-digit decimals after that, and
-every evaluation runs off the UI thread and can be cancelled.
+and shown in two dimensions (fractions, roots, powers, integrals, sums),
+numbers are exact fractions for as long as possible and 50-digit decimals
+after that, and every evaluation runs off the UI thread and can be cancelled.
 
 <p>
-  <img src="docs/screenshots/standard.png" width="19%" alt="Standard tab: a fraction with a square root in the numerator, result 0.5 and 1/2">
-  <img src="docs/screenshots/scientific.png" width="19%" alt="Scientific tab: an integral plus a cube root times a power of e">
-  <img src="docs/screenshots/lab_solver.png" width="19%" alt="Lab tab: quadratic solver with exact roots">
-  <img src="docs/screenshots/convert.png" width="19%" alt="Convert tab: 12.5 metres in other length units">
-  <img src="docs/screenshots/history.png" width="19%" alt="History tab: the tape of past calculations">
+  <img src="docs/screenshots/standard.png" width="24%" alt="Standard tab with the row of quick function keys open; the parenthesis that is still open is drawn as a ghost and counted on its key">
+  <img src="docs/screenshots/scientific.png" width="24%" alt="Scientific tab: an integral plus a cube root times a power of e, and the grid with the amber INV key">
+  <img src="docs/screenshots/scientific_inv.png" width="24%" alt="Scientific tab with INV on: a sum, a mixed fraction and a number in polar form with their complex result; the keys INV has changed are amber">
+  <img src="docs/screenshots/calc.png" width="24%" alt="CALC: the prompt asks for x and y of the formula x² + 3y">
+</p>
+<p>
+  <img src="docs/screenshots/lab_solver.png" width="24%" alt="Lab tab: the display folded into a bar, the quadratic solver with exact roots below it">
+  <img src="docs/screenshots/convert.png" width="24%" alt="Convert tab: 12.5 metres in other length units">
+  <img src="docs/screenshots/convert_data.png" width="24%" alt="Convert tab, data units: 1 MB in the units that count in steps of 1000 and in those that count in steps of 1024">
+  <img src="docs/screenshots/history.png" width="24%" alt="History tab: the tape of past calculations">
 </p>
 <p>
   <img src="docs/screenshots/tablet.png" width="97%" alt="Two-pane layout on a tablet">
@@ -36,30 +41,81 @@ The pictures are rendered by the screenshot test of this repository
 
 **Display.** One card stays on top of every tab. It shows the expression the
 way it is written on paper, a live preview of the result while typing, and the
-committed result with its second form (`0.5` and `1/2`). A line that gets too
-long first shrinks, then scrolls with faded edges; the caret stays in view.
-Badges switch the angle unit (DEG, RAD, GRAD), real or complex results, and how
-`6÷2(1+2)` is read (TI: 9, CASIO: 1). Undo, redo, copy and paste sit next to
-them; pasted text such as `1,250.50 × 2³ − √16` is cleaned up and turned into
-editable structure. Pulling the handle down opens the recent history.
+committed result with its second form (`0.5` and `1/2`). An empty line shows a
+muted `0`, and a parenthesis that has not been closed yet is drawn as a ghost
+`)` where it will be closed. A line that gets too long first shrinks, then
+scrolls with faded edges; the caret stays in view. Badges switch the angle
+unit (DEG, RAD, GRAD), real or complex results, and how `6÷2(1+2)` is read
+(TI: 9, CASIO: 1); the last two say in a short message what they have just
+switched to. An `ENG` badge is there while engineering notation is on, and a
+tap switches it off. Undo, redo, copy and paste sit next to them; pasted text
+such as `1,250.50 × 2³ − √16` is cleaned up and turned into editable
+structure. Pulling the handle down opens the recent history.
+
+Lab, Convert and History have their own input and read-out. On these tabs the
+card folds into a one-line bar that keeps the badges and shows the last
+answer, and the tab gets the room. A tap on the bar opens the display where
+it is; the chevron folds it again, and so does the next tab change.
 
 **Five tabs.**
 
 | Tab | Contents |
 | --- | --- |
-| Standard | Digits, `+ − × ÷`, `%`, a parenthesis key that opens or closes as needed, cursor keys for moving inside the 2D expression, `MC MR M+ M−`. |
-| Scientific | Trigonometric, hyperbolic and inverse functions, `ln`, `log`, `log₂`, `logₐ`, powers and roots, fraction and absolute-value templates, `π`, `e`, `φ`, `i`, `×10ˣ`, factorial and gamma, `nCr`, `nPr`, `mod`, definite integral and derivative, variables `x`, `y`, `M`, `Ans`. `INV` and `HYP` change the key faces and release after one key. |
-| Lab | **Solver:** quadratic and cubic equations; rational roots stay exact fractions, complex roots are shown. **Matrix:** two matrices up to 4×4; sum, difference, product, determinant, inverse, transpose, rank, trace. **Table:** values of the current expression over a range. **Stats:** one-variable summary (mean, sums, both standard deviations, quartiles) and two-variable linear regression. **Base-N:** HEX, DEC, OCT, BIN at 8, 16, 32 or 64 bits, signed or unsigned, with `AND OR XOR NOT << >>`. |
-| Convert | Twelve categories (length, mass, temperature, area, volume, speed, time, data, pressure, energy, power, angle), all units of a category at once, and 24 physical constants (CODATA 2022) that can be inserted into the expression. |
-| History | Searchable tape of past calculations stored in SQLite: a tap brings an expression back for editing, `Ans` inserts its result. Variable slots (`Ans`, `M`, `A`–`F`, `x`, `y`) can be inserted, filled from the last answer or cleared. |
+| Standard | Digits, `+ − × ÷`, `%`, a parenthesis key that opens or closes as needed and counts the groups that are still open, cursor keys for moving inside the 2D expression, `MC MR M+ M−` (`MC` and `MR` are outlined while the memory holds a value). `f(x)` opens a row with `sin cos tan ln √x x² xʸ π`, so that a single function does not need a tab change. |
+| Scientific | The cursor and memory keys, then six rows of five (below). `INV` is an amber shift key: the corner of a key names, in the same amber, what `INV` turns it into, and the keys it has changed are amber while it is on. `INV` and `HYP` release after one key. `,` moves on to the next argument of a function and to the next slot of `∫`, `Σ` and `Π`. `f(x)` opens a row with what the grid has no key for: `log₂`, `logₐ`, `Γ`, `gcd`, `lcm`, `°`, `%`, `arg`. |
+| Lab | **Solver:** quadratic and cubic equations; rational roots stay exact fractions, complex roots are shown. **Matrix:** two matrices up to 4×4; sum, difference, product, determinant, inverse, transpose, rank, trace. **Table:** values of the current expression over a range. **Stats:** one-variable summary (mean, sums, both standard deviations, quartiles) and two-variable linear regression. **Base-N:** HEX, DEC, OCT, BIN at 8, 16, 32 or 64 bits, signed or unsigned, with `AND OR XOR NOT << >>`; a tap on a base makes it the one being typed, and digits it does not have are switched off. Roots, scalar matrix results, statistics and the decimal Base-N value have a `↗` that puts them into the main expression. |
+| Convert | Twelve categories (length, mass, temperature, area, volume, speed, time, data, pressure, energy, power, angle), all units of a category at once (an empty field counts as 0, and `0 °C` is `32 °F`), a `↗` on every line that puts its value into the main expression, and 24 physical constants (CODATA 2022); a tap on a constant inserts it into the expression. Data units come in both families, and every line says how its unit is built: `MB` is `1000 kB`, `MiB` is `1024 KiB` (see [Data units](#data-units)). |
+| History | Searchable tape of past calculations stored in SQLite: a tap brings an expression back for editing, `Ans` inserts its result, and both return to the keypad; a long press opens the whole expression and result with copy buttons. Variable slots (`Ans`, `M`, `A`–`F`, `x`, `y`) can be inserted, filled from the last answer or cleared. |
+
+The scientific grid, with the second function of a key in parentheses:
+
+| | | | | |
+| --- | --- | --- | --- | --- |
+| `INV` | `HYP` | `Σ` (`Π`) | `x` (`y`) | `AC` |
+| `sin` (`sin⁻¹`) | `cos` (`cos⁻¹`) | `tan` (`tan⁻¹`) | `ln` (`eˣ`) | `log` (`10ˣ`) |
+| `x²` (`x³`) | `xʸ` (`ʸ√x`) | `√x` (`∛x`) | fraction (mixed fraction `a b/c`) | `\|x\|` (`1/x`) |
+| `π` (`φ`) | `e` (`Rand`) | `i` (`∠`) | `×10ˣ` (`ENG`) | `x!` (`mod`) |
+| `∫dx` | `d/dx` | `nCr` (`nPr`) | `(` | `)` |
+| `CALC` | `Ans` (`M`) | `,` | `⌫` | `=` |
+
+With `HYP` the first three keys of the second row are `sinh`, `cosh`, `tanh`
+and their inverses.
+
+- **`Σ` and `Π`** are templates like the integral: a first and a last whole
+  number below and above the sign and the term behind it, with `x` running
+  from one to the other. `Σ` of `x²` from 1 to 10 is `385`.
+- **Mixed fraction.** `2 1/3` is typed into three slots and is `7/3`.
+- **`∠`** writes a complex number by length and angle, the angle in the
+  current unit: `2∠30` in DEG is `1.732050808 + 1i`. It switches complex
+  results on, as `i` does.
+- **`Rand`** is a random number from 0 up to, not including, 1 with ten
+  decimals; `=` draws a new one every time.
+- **`ENG`** switches engineering notation on and off: exponents in steps of
+  three, `827115` as `827.115×10³`, with the plain number as the second form.
+  It is remembered like the other modes.
+- **`CALC`** evaluates a formula for values that are typed in for its
+  variables. It lists every variable of the expression (`x`, `y`, letters;
+  `x` when there is none), each field starting with what the variable has
+  stored. **Evaluate** shows the result in the result row together with the
+  values it belongs to (`x = 5, y = 2`). The formula stays in the editor with
+  its caret, so `CALC` can be pressed again: the fields then hold the values
+  of the result on display, and typing replaces the one being changed. The
+  values are for that evaluation only: no variable is stored, `Ans` and the
+  history are not touched, and values that give an error leave the formula
+  open for the next ones. `=` on a variable that has no value says so and
+  points to `CALC`.
 
 In portrait one tab is visible at a time; from 600 dp of width the standard
-keypad and the display stay on screen next to the other tabs. A swipe on the
-display card or the tab bar changes the tab, a swipe on the keys never does.
+keypad and the display stay on screen next to the other tabs (and the display
+never folds). There the scientific grid leaves the cursor and memory keys to
+the standard keypad, whose `f(x)` opens the row of further functions. A swipe
+on the display card or the tab bar changes the tab, a swipe on the keys never
+does.
 
 **Also.** Hardware keyboards work (digits, `+ - * / ^ ( ) ! % .`, `=` or Enter,
-Backspace, Esc, arrows, `x`, `e`, `p` for π). The expression in progress, the
-modes, the variables and the history survive a restart. Haptic feedback
+Backspace, Esc, arrows, `x`, `y`, `e`, `p` for π; in the `CALC` prompt digits,
+`. - / e`, Enter for the next field, Tab and Esc). The expression in progress,
+the modes, the variables and the history survive a restart. Haptic feedback
 distinguishes digits, operators, clearing and errors. Displays that support
 90 or 120 Hz are asked to use it. Expression, result and errors are exposed
 to screen readers as text. The app works offline: the release build does not
@@ -67,25 +123,32 @@ hold the network permission, and its fonts are bundled.
 
 ## Download
 
-APKs are not stored in git. Every run of the
-[CI workflow](https://github.com/Nemat-commits/scientific-calculator-pro/actions/workflows/ci.yml)
-attaches them to the run: open the newest run with a green check mark and
-scroll down to **Artifacts**. Each APK is an artifact of its own and is
-stored as it is, so the download is the `.apk` file, not a zip. A GitHub
-login is needed to download artifacts, and they are kept for 90 days.
+The APKs of version 3.2.0 are in [`releases/`](releases/). The links download
+the file:
 
-| Artifact | Size | Use it for |
+| File | Size | Use it for |
 | --- | --- | --- |
-| `app-arm64-v8a-release.apk` | 19 MB | Phones and tablets running 64-bit ARM Android (most current devices). |
-| `app-armeabi-v7a-release.apk` | 17 MB | 32-bit ARM Android: older devices and many entry-level ones. |
-| `app-x86_64-release.apk` | 21 MB | Emulators and x86 Chromebooks. |
-| `app-release.apk` | 55 MB | All three in one file. Installs everywhere; take it when unsure. |
+| [`scientific-calculator-pro-3.2.0-arm64-v8a.apk`](https://github.com/Nemat-commits/scientific-calculator-pro/raw/main/releases/scientific-calculator-pro-3.2.0-arm64-v8a.apk) | 19 MB | Phones and tablets running 64-bit ARM Android (most current devices). Take this one first. |
+| [`scientific-calculator-pro-3.2.0-armeabi-v7a.apk`](https://github.com/Nemat-commits/scientific-calculator-pro/raw/main/releases/scientific-calculator-pro-3.2.0-armeabi-v7a.apk) | 17 MB | 32-bit ARM Android: older devices and many entry-level ones. Take it when Android refuses the first one as not compatible. |
+
+[`releases/README.md`](releases/README.md) has the checksums, the commit the
+files were built from, and how to install them.
+
+Every run of the
+[CI workflow](https://github.com/Nemat-commits/scientific-calculator-pro/actions/workflows/ci.yml)
+attaches the APKs of its commit as well, under **Artifacts** at the bottom of
+the run: the two above, `app-x86_64-release.apk` (21 MB, emulators and x86
+Chromebooks) and `app-release.apk` (55 MB, all three in one file). Each is an
+artifact of its own and is stored as it is, so the download is the `.apk`
+file, not a zip. A GitHub login is needed for artifacts, and they are kept
+for 90 days.
 
 Android 7.0 (API 24) or newer is required. Unless a keystore has been set up
 (see [Signing a release](#signing-a-release)), CI signs the APKs of a run with
-a debug key that exists only for that run. Such an APK installs and runs
-normally, but Android will not accept the build of a later run as an update
-of it: uninstall first, which also removes the stored history.
+a debug key that exists only for that run; the files in `releases/` are such
+builds. They install and run normally, but Android will not accept a later
+build as an update of an earlier one: uninstall first, which also removes the
+stored history.
 
 ## Build from source
 
@@ -158,25 +221,31 @@ dart test test/domain/engine_verification_test.dart --plain-name "MathEngine"   
 dart test test/domain/engine_verification_test.dart                              # gate 2: all 24 cases, under 50 ms together
 dart test test/domain                                                            # the whole engine and editor suite; needs no Flutter
 flutter test                                                                     # gate 3: the above plus state, isolates and widgets
-CALC_SCREENSHOTS=1 flutter test test/screenshots                                 # renders 21 PNGs into build/screenshots/
+CALC_SCREENSHOTS=1 flutter test test/screenshots                                 # renders 38 PNGs into build/screenshots/
 ```
 
 | Suite | What it covers |
 | --- | --- |
 | `test/domain/engine_verification_test.dart` | The 24 verification cases of [the blueprint](#design-decisions-and-deviations-from-the-blueprint) (TC-01 … TC-24), their time budget and the precision constants. |
 | `test/domain/editor_and_engines_test.dart` | Editor tree and cursor, paste clean-up, formatter, calculus, solver, matrices, statistics, Base-N, unit conversion. |
-| `test/presentation/calculator_notifier_test.dart` | Live preview, what the next key does after `=`, errors, undo, memory, variables, persistence of modes and draft. |
+| `test/domain/sums_polar_notation_test.dart` | `Σ` and `Π`, mixed fractions, the polar form, `Rand` with a scripted source of random numbers, engineering notation, and the variables an expression depends on. |
+| `test/domain/reference_values_test.dart` | The numbers of Convert and Lab against values the app did not produce (see [Checked against references](#checked-against-references)). |
+| `test/presentation/calculator_notifier_test.dart` | Live preview, what the next key does after `=`, errors, undo, memory, variables, persistence of modes and draft, `CALC` (nothing stored, formula and caret kept, errors that do not lock, mode changes) and `ENG`. |
 | `test/presentation/evaluator_isolate_pool_test.dart` | Evaluation on a worker isolate, cancellation by newer input, the 250 ms preview budget, the watchdog that replaces a stuck worker. |
 | `test/presentation/calculator_shell_test.dart`, `display_card_test.dart` | Keys, hardware keyboard, gestures, every tab and Lab mode at four screen sizes without overflow, shrinking and scrolling of long lines, screen-reader labels. |
+| `test/presentation/ux_improvements_test.dart` | The changes of 3.1: folding and reopening of the display, mode messages, placeholder and ghost parentheses, the quick function row, the parenthesis counter, the corner legends of the scientific grid, sending values from Lab, Convert and History to the expression, Base-N on a small phone; the data units with their steps, and that no unit name is cut short on a phone. |
+| `test/presentation/scientific_keys_test.dart` | The changes of 3.2: every key of the scientific grid in its place with and without `INV`, the colour of `INV`, the `f(x)` rows, `Σ`, `Π`, mixed fraction, `∠`, `Rand` and `ENG` from their keys, and the `CALC` prompt from the keys and from a hardware keyboard. |
 | `test/screenshots/screenshots_test.dart` | Skipped unless `CALC_SCREENSHOTS=1`; then renders the screens at phone, small-phone, landscape and tablet sizes. |
 
 `.github/scripts/emulator_smoke.sh <apk> <out-dir>` drives a release APK on a
 running emulator or device through `adb`: typed input, `=`, `Ans`, `5000!`,
-rotation, all tabs, and a forced stop followed by a restart, with a
-screenshot after every step. It fails when the app is no longer running or
-when logcat shows a Flutter error or a crash. It does not read the screen:
-whether the results are right and the history is back after the restart is
-for a person to see in the screenshots.
+rotation, all tabs, the `INV` key, `CALC` with a value typed on the keyboard,
+a `Σ` filled in slot by slot, the folded display and its reopening, and a
+forced stop followed by a restart, with a screenshot after every step. It
+fails when the app is no longer running, when logcat shows a Flutter error or
+a crash, or when a tap leaves the screen as it was. It does not read the
+screen: whether the results are right and the history is back after the
+restart is for a person to see in the screenshots.
 
 ## Continuous integration
 
@@ -203,7 +272,8 @@ lib/
   core/           colours, typography, haptics, unit and constant tables
   domain/         pure Dart, no Flutter import: can be run and tested with `dart` alone
     models/       editor nodes, syntax tree, values, errors, evaluation context
-    editor/       2D editing: keys, cursor paths, the post-"=" state machine, paste clean-up
+    editor/       2D editing: keys, cursor paths, the post-"=" state machine, paste clean-up,
+                  the variables an expression depends on
     compiler/     editor tree → tokens → implied multiplication → Pratt parser → syntax tree
     evaluator/    arithmetic, transcendental functions, gamma, calculus, complex numbers,
                   matrices, solver, statistics, Base-N, units, number formatting, cancellation
@@ -212,20 +282,24 @@ lib/
   presentation/
     isolate/      worker isolates, request protocol, shared generation counter
     state/        Riverpod notifier and UI state
-    widgets/      display card, 2D expression painter, keys, tab bar, Lab building blocks
+    widgets/      display card, 2D expression painter, keys, tab bar, CALC prompt,
+                  Lab building blocks
     tabs/         the five tab views
     screens/      the shell: portrait and two-pane layouts, hardware keyboard
   main.dart
 ```
 
 **From key to result.** A key becomes a `CalcKey`. `MathPrintController`
-applies it to the editor tree (`EditorNode`: atoms, fraction, power, root,
-function call, integral, derivative; nesting is limited to depth 4) and moves
-the cursor, which is a path into that tree. For evaluation the tree is lowered
+applies it to the editor tree (`EditorNode`: atoms, fraction with or without
+a whole part, power, root, function call, integral, sum, product, derivative;
+nesting is limited to depth 4) and moves the cursor, which is a path into
+that tree. For evaluation the tree is lowered
 to tokens, implied multiplications are made explicit according to the TI or
 CASIO setting, and a Pratt parser builds the syntax tree. `AstEvaluator` walks
 it and returns a `CalcValue` — exact rational, decimal, complex, matrix or
-fixed-width integer — which `NumberFormatter` turns into text.
+fixed-width integer — which `NumberFormatter` turns into text. `CALC` is the
+same evaluation with other variables: the values typed into its prompt are
+laid over the stored ones for that one request.
 
 **Off the UI thread.** `CalculatorNotifier` sends every evaluation to
 `EvaluatorIsolatePool`. Two mechanisms keep the UI responsive:
@@ -287,10 +361,79 @@ switched off.
   integral, derivative and non-integer factorial with that result moved by
   its error bound, and keeps the digits both runs share. A value smaller than
   its own uncertainty is shown as `0`. `Ans` receives the same rounded value.
-- **Complex numbers** are pairs of decimals shown as `a + bi`; matrices are
-  grids of decimals up to 4×4; Base-N values are integers wrapped to the
-  chosen word size.
+- **Sums and products.** `Σ` and `Π` work the term out once for every whole
+  number of the range and stay exact where the terms are: `Σ 1/x` from 1 to
+  10 is `7381/2520`. A range that runs backwards is empty, which makes the
+  sum 0 and the product 1. Bounds that are not whole numbers are an error,
+  and so are more than ten million terms; a sum that needs longer than the
+  time budget is stopped like any other calculation. The `x` of the term is
+  the running one; an `x` outside the sign is the stored variable.
+- **Mixed fractions.** `a b/c` is `a + b/c`. A minus sign in front of it or
+  in its whole part is the sign of all of it: `−2 1/3` is `−7/3`. An empty
+  whole part is an error, not a zero.
+- **Complex numbers** are pairs of decimals shown as `a + bi`. `r∠θ` is
+  `r·(cos θ + i·sin θ)` with `θ` in the current angle unit; it binds tighter
+  than `×` and `÷`, so `2×3∠45` is `2×(3∠45)` and an angle such as `π/2`
+  needs parentheses. A complex result leads with both parts rounded to ten
+  digits, because two numbers of 34 digits do not fit a line; all digits are
+  in the line below it, and a tap swaps the two.
+- **`Rand`** has ten decimals. Every `Rand` of an expression is a number of
+  its own (`Rand − Rand` is not 0), there is no live preview of it, and when
+  the evaluator repeats a calculation to see which digits can be trusted, it
+  uses the numbers of the first run again.
+- **Engineering notation** is a way of writing a result: the value, `Ans` and
+  the history are the same with it and without. Numbers from 1 up to 1000
+  are written plainly, and complex numbers and the short form of a giant
+  factorial keep theirs.
+- Matrices are grids of decimals up to 4×4; Base-N values are integers
+  wrapped to the chosen word size.
 - **Limits.** Exponents up to ±999,999. Function tables have at most 200 rows.
+
+### Checked against references
+
+The numbers of the Convert and Lab tabs are compared with values that the app
+did not produce. `tool/reference/generate_reference_data.py` works them out
+again from the definitions of the units (the inch of 1959, the pound, the
+calorie, the standard atmosphere, …), with exact fractions, SymPy and mpmath
+at 70 digits, and writes them to `test/domain/reference_data.dart`;
+`test/domain/reference_values_test.dart` holds the app to them:
+
+- all 112 unit factors, 78 conversions that standards state as round numbers
+  (`1 mi = 1.609344 km`), 37 that do not come out round, and every
+  conversion undone by the opposite one;
+- the 24 physical constants against the CODATA 2022 values published by
+  NIST, and that the value the calculator computes with is the one shown;
+- the roots of 62 linear, quadratic and cubic equations;
+- determinant, trace, rank, inverse, transpose, sum, difference and product
+  of 19 square and 5 rectangular matrices;
+- 13 data sets and 7 regressions;
+- 88 Base-N operations at every word size, signed and unsigned, 32 words read
+  in all four bases, and 7 function tables.
+
+The check found two things, both corrected: the inch of mercury was
+`3386.389 Pa`, rounded, instead of the `3386.388640341 Pa` that 25.4 mm of
+mercury come to; and in Base-N a hexadecimal number ending in `E` in front of
+`+` or `−` was read as the start of an exponent, so that `1E − 1` was a
+syntax error.
+
+### Data units
+
+`kB`, `MB`, `GB` and `TB` count in steps of 1000, as the SI prefixes do and
+as drives and network speeds are sold. `KiB`, `MiB`, `GiB` and `TiB` (IEC
+80000-13) count in steps of 1024, as memory is addressed. Many programs,
+Windows among them, show a number of mebibytes and label it "MB", which is
+where the expectation that 1 MB is 1024 kB comes from. The converter has both
+families side by side: `1 MB = 1000 kB = 976.5625 KiB`, and
+`1 MiB = 1024 KiB = 1048.576 kB`. Every line of the list says how its unit is
+built, and a note above the list tells the two families apart.
+
+Where a name exists in several sizes, the line says which one it is: the
+gallon, pint and spoon measures are the US ones (the imperial gallon has a
+line of its own), the calorie is the thermochemical one (4.184 J), the BTU
+that of the International Table, the horsepower comes as mechanical
+(550 ft·lbf/s) and as metric (75 kgf·m/s), the ton as short, long and metric,
+and a year is the Julian year of 365.25 days with a month as a twelfth of
+it. A long name takes a second line rather than being cut.
 
 ## Design decisions and deviations from the blueprint
 
@@ -316,7 +459,6 @@ what was done.
   `×` and `÷` in CASIO mode. A power binds tighter than any implied product.
 - **Minus sign.** JetBrains Mono draws U+2212 as narrow as a hyphen, so the
   display shows an en dash for it. Stored and copied text is unaffected.
-- **Empty line.** Shows only the caret, no placeholder.
 - **Repeated `=`.** Pressing `=` again on a committed result adds no second
   history line.
 - **Converter.** Starts from the base unit of a category (°C for
@@ -329,26 +471,86 @@ what was done.
 - **Formatting.** `dart format` with a page width of 120
   (`analysis_options.yaml`).
 
+### The UX review (versions 3.1 and 3.2)
+
+Version 3.1 applied a written review of the layout,
+`ux_and_layout_improvements_blueprint.md` (not part of this repository
+either): the folding display, the mode messages, the placeholder and the
+ghost parentheses, the quick function row and the parenthesis counter, the
+rearranged scientific grid, and the paths from Lab, Convert and History back
+into the expression. Version 3.2 adds the functions that review puts on the
+grid and the engine did not have (`Σ`, `Π`, mixed fractions, `Rand`, `∠`,
+`ENG`, `CALC`), gives every key the place the review gives it, makes `INV`
+recognisable as a shift key, and checks the numbers of Convert and Lab
+against references. Where the result differs from the review, or where it
+left a choice:
+
+- **What the grid has no room for.** With the review's keys in place, `log₂`,
+  `logₐ`, `Γ`, `gcd`, `lcm` and `°` have no key of their own. They are in a
+  row that `f(x)` opens above the grid, together with `%` and `arg`.
+- **`INV`.** Amber, a colour no other key has: outlined while off, filled
+  while on. The corner legends, which name the second functions, are amber
+  too, and a key that `INV` has changed shows its new face in amber.
+- **`CALC` stores nothing.** The values are laid over the stored variables
+  for one evaluation, as the review asks ("temporary test values"); on a
+  Casio the same key stores them. The fields start with the stored values,
+  and with the values of the previous `CALC` while its result is still on
+  display, so that one of several can be changed. An error leaves the line
+  open instead of locking it, because the next values may be fine. A change
+  of angle unit or mode works the result out again with the same values.
+- **`ENG` is a mode**, not a key that rewrites one result: it stays on, is
+  stored with the settings and shows as a badge.
+- **`Σ` and `Π` run over `x`.** There is no slot for the name of the
+  variable; pasted text may say `sum(1,10,x^2)` and `prod(1,5,x)`.
+- **`Rand`** has ten decimals (the Casio `Ran#` has three).
+- **The folded display opens in place.** The review allows a tap on the bar
+  to jump to the Standard tab or to expand the display; it expands, so the
+  tab in use stays. The bar is 56 dp high.
+- **Mode messages.** Without a Material layer there is no `SnackBar`. The
+  message is a widget of the app that floats over the keypad for 1.5 s and
+  lets touches through. The texts are shorter than in the review, and the
+  badge keeps its name `TI`.
+- **Sending a value.** A `↗` at the end of the line instead of a "Use in
+  Calc" chip, which the narrow lines have no room for. A negative or complex
+  value is inserted in parentheses.
+- **Open parentheses inside a template.** A parenthesis left open in an
+  exponent, a root or a fraction is closed where that slot ends, which is
+  also where its ghost is drawn: `2^(1+1` followed by `×3` outside the
+  exponent is `2^(1+1) × 3`.
+- **`,` on the scientific grid.** Inside a function with several arguments
+  it moves the caret to the next one; elsewhere it types a separator.
+- **Converter.** There was no special case for zero: the dashes came from
+  an empty field, which now counts as 0.
+
 ## What has been verified, and what has not
 
 On CI, with the code as it is in this commit:
 
 - `flutter analyze` reports no issues and `dart format` no changes.
-- All 24 blueprint cases pass and take 10 to 15 ms together (budget 50 ms).
-- `flutter test`: 100 tests pass (62 of them engine and editor tests that
+- All 24 blueprint cases pass and take 7 to 15 ms together (budget 50 ms).
+- `flutter test`: 215 tests pass (112 of them engine and editor tests that
   also run under plain `dart test`); the 4 screenshot tests are skipped
   unless requested and pass when run.
+- The numbers of Convert and Lab agree with the reference values (see
+  [Checked against references](#checked-against-references)).
 - The release APKs build, and `apksigner` accepts them.
 - On an Android 14 (API 34) x86_64 emulator at 1080×2400 the release APK
-  starts cold in under 3 s, computes typed input, `Ans` and `5000!`, lays out
-  in landscape, shows all five tabs, and still has its history after being
-  force-stopped and restarted. Logcat contains no Flutter error. What the
-  screens show was read off the screenshots of the run.
+  starts cold in 2 to 3.5 s, computes typed input, `Ans` and `5000!`, lays
+  out in landscape, shows all five tabs with the display folded into its bar
+  on Lab, Convert and History, opens the folded display on a tap, and still
+  has its history after being force-stopped and restarted. On the scientific
+  tab `INV` turns the keys amber, `CALC` asks for `x`, takes `5` from the
+  keyboard and shows `28` for `x×x+3` with the formula still in the editor,
+  and a `Σ` filled in slot by slot gives `10` for the sum of 1 to 4. Logcat
+  contains no Flutter error. What the screens show was read off the
+  screenshots of the run.
 
 Not verified:
 
 - No physical device was used. Haptics, the 90/120 Hz request, real GPUs and
-  ARM hardware are exercised only by code review and by the build.
+  ARM hardware are exercised only by code review and by the build. The
+  emulator ran the universal APK; the two ARM APKs in `releases/` come from
+  the same build, and neither was installed on a device.
 - Only API 34 was run. API 24 to 33 and 35+ are covered by the build
   configuration alone.
 - Signing with a keystore was exercised on CI once, with a throw-away test
@@ -357,6 +559,7 @@ Not verified:
   produces today are debug-signed.
 - Screen readers: labels are checked by tests, TalkBack itself was not run.
 
-The earlier WebView-based app (v3.1.x) was removed from the tree in favour of
-this implementation. Its history remains in git, and the `gh-pages` branch
-still serves its web demo.
+The earlier WebView-based app was removed from the tree in favour of this
+implementation. Its releases were numbered 3.1.x as well: the tag `v3.1` is
+one of them and is not version 3.1.0 of this app. Its history remains in git,
+and the `gh-pages` branch still serves its web demo.

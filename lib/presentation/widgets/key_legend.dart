@@ -72,7 +72,7 @@ class _FractionPainter extends CustomPainter {
     final stroke = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
+      ..strokeWidth = (size.height * 0.057).clamp(0.9, 1.4)
       ..strokeJoin = StrokeJoin.round;
     final box = size.height * 0.34;
     final left = (size.width - box) / 2;
@@ -85,4 +85,90 @@ class _FractionPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FractionPainter old) => old.color != color;
+}
+
+/// Legend of the mixed-fraction key: a box for the whole part in front of
+/// the two boxes of the fraction.
+class MixedFractionLegend extends StatelessWidget {
+  const MixedFractionLegend({super.key, required this.color, this.size = 17});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size * 1.55,
+        height: size * 1.45,
+        child: CustomPaint(painter: _MixedFractionPainter(color)),
+      );
+}
+
+class _MixedFractionPainter extends CustomPainter {
+  const _MixedFractionPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (size.height * 0.057).clamp(0.9, 1.4)
+      ..strokeJoin = StrokeJoin.round;
+    final box = size.height * 0.34;
+    final whole = size.height * 0.44;
+    final radius = Radius.circular(box * 0.22);
+    final fractionLeft = whole + size.height * 0.16;
+    final fractionWidth = size.width - fractionLeft;
+    final boxLeft = fractionLeft + (fractionWidth - box) / 2;
+    canvas
+      ..drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0.7, (size.height - whole) / 2, whole, whole), radius), stroke)
+      ..drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(boxLeft, 0.7, box, box), radius), stroke)
+      ..drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(boxLeft, size.height - box - 0.7, box, box), radius), stroke)
+      ..drawLine(Offset(fractionLeft, size.height / 2), Offset(size.width, size.height / 2),
+          stroke..strokeCap = StrokeCap.round);
+  }
+
+  @override
+  bool shouldRepaint(_MixedFractionPainter old) => old.color != color;
+}
+
+/// Legend of the polar-form key: the angle sign, which no bundled font has.
+class AngleLegend extends StatelessWidget {
+  const AngleLegend({super.key, required this.color, this.size = 17});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size * 0.9,
+        height: size * 0.82,
+        child: CustomPaint(painter: _AnglePainter(color)),
+      );
+}
+
+class _AnglePainter extends CustomPainter {
+  const _AnglePainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (size.height * 0.11).clamp(0.9, 1.7)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final inset = stroke.strokeWidth / 2;
+    final path = Path()
+      ..moveTo(size.width * 0.86, inset)
+      ..lineTo(inset, size.height - inset)
+      ..lineTo(size.width - inset, size.height - inset);
+    canvas.drawPath(path, stroke);
+  }
+
+  @override
+  bool shouldRepaint(_AnglePainter old) => old.color != color;
 }

@@ -10,9 +10,13 @@ import '../../domain/compiler/tree_to_token_lowerer.dart';
 import '../../domain/editor/calc_key.dart';
 import '../../domain/editor/clipboard_sanitizer.dart';
 import '../../domain/editor/cursor_path.dart';
+import '../../domain/editor/expression_variables.dart';
 import '../../domain/editor/input_phase.dart';
 import '../../domain/editor/math_print_controller.dart';
 import '../../domain/evaluator/ast_evaluator.dart';
+import '../../domain/evaluator/number_formatter.dart';
+import '../../domain/math_engine.dart';
+import '../../domain/models/calc_error.dart';
 import '../../domain/models/calc_value.dart';
 import '../../domain/models/calc_value_codec.dart';
 import '../../domain/models/editor_node.dart';
@@ -67,6 +71,18 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
   (String, String, String)? _lastCommit;
   int _ticket = 0;
 
+  /// The value `CALC` put on display (see [CalculatorUiState.substitution]).
+  String? _substituted;
+
+  /// The values of the latest `CALC`, encoded and as they were typed.
+  Map<String, String> _calcValues = const <String, String>{};
+  Map<String, String> _calcEntries = const <String, String>{};
+
+  /// What was typed into `CALC` for the result (or the error) on display, by
+  /// variable; empty once it is gone. The prompt starts from these, so that
+  /// changing one of several values takes one key.
+  Map<String, String> get calcEntries => state.substitution == null ? const <String, String>{} : _calcEntries;
+
   @override
   CalculatorUiState build() {
     _repository = ref.read(repositoryProvider);
@@ -84,6 +100,7 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
       angleUnit: settings.angleUnit,
       juxtapositionMode: settings.juxtaposition,
       isComplexEnabled: settings.complexEnabled,
+      notation: settings.engineeringNotation ? NotationMode.engineering : NotationMode.auto,
       variables: <String, String>{'Ans': '0', 'M': '0', ...ref.read(storedVariablesProvider)},
     );
     if (draft != null && !draft.isEmpty) scheduleMicrotask(_requestPreview);
@@ -102,8 +119,9 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
     final before = state;
     final session = InputPhaseMachine.press(EditingSession(before.editor, phase: before.inputPhase), key);
     _apply(before, session, consumedShift: consumeShift);
-    if (key is AtomKey && key.kind == AtomKind.constant && key.text == 'i' && !state.isComplexEnabled) {
-      toggleComplex(); // typing i implies complex mode
+    final complex = key is AtomKey && ((key.kind == AtomKind.constant && key.text == 'i') || key.text == '∠');
+    if (complex && !state.isComplexEnabled) {
+      toggleComplex(); // typing i or the angle of a polar form implies complex mode
     }
   }
 
@@ -116,12 +134,15 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
       if (undo.length > _undoLimit) undo = undo.sublist(undo.length - _undoLimit);
       redo = const <EditorSequence>[];
     }
-    final leftResult = before.inputPhase != InputPhase.editing;
+    // A result or a message (of `=`, or of a CALC that failed) leaves the display.
+    final leftResult = before.inputPhase != InputPhase.editing || before.errorMessage != null;
     state = before.copyWith(
       rootSequence: session.editor.root,
       cursorPath: session.editor.cursor.toRecords(),
       inputPhase: session.phase,
       errorMessage: null,
+      // The message of a failed CALC goes, and the values it names with it.
+      substitution: before.errorMessage != null ? null : before.substitution,
       livePreviewPrimary: leftResult ? '' : null,
       livePreviewSecondary: leftResult ? null : before.livePreviewSecondary,
       undoStack: undo,
@@ -137,11 +158,12 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
   void setCursor(String sequenceId, int offset) {
     final path = MathPrintController.pathTo(state.rootSequence, sequenceId, offset);
     if (path == null) return;
-    final leftResult = state.inputPhase != InputPhase.editing;
+    final leftResult = state.inputPhase != InputPhase.editing || state.errorMessage != null;
     state = state.copyWith(
       cursorPath: path.toRecords(),
       inputPhase: InputPhase.editing,
       errorMessage: null,
+      substitution: state.errorMessage != null ? null : state.substitution,
       livePreviewPrimary: leftResult ? '' : null,
       livePreviewSecondary: leftResult ? null : state.livePreviewSecondary,
     );
@@ -158,6 +180,32 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
 
   /// Sanitises [text] and inserts it at the caret.
   void pasteText(String text) => insertNodes(ClipboardSanitizer.sanitize(text));
+
+  /// Inserts a number that another part of the app produced (history tape,
+  /// converter, lab) at the caret. [value] is a formatter string such as
+  /// `1.5e-7`, `4.2 × 10^16325` or `-4 + 2i`; anything that is not a plain
+  /// unsigned number goes in parentheses so that it stays one operand.
+  void insertValue(String value) {
+    final literal = value.trim().replaceAll(' × 10^', 'E');
+    if (literal.isEmpty) return;
+    final compound = literal.contains(' ') || literal.startsWith('-') || literal.startsWith('−');
+    pasteText(compound ? '($literal)' : literal);
+    if (literal.contains('i') && !state.isComplexEnabled) toggleComplex(); // as when i is typed
+  }
+
+  /// `,`: inside a function with several arguments the caret moves on to the
+  /// next argument; anywhere else an argument separator is typed.
+  void pressSeparator() {
+    final before = state;
+    if (before.inputPhase == InputPhase.editing) {
+      final next = MathPrintController.nextArgument(before.editor);
+      if (next != null) {
+        _apply(before, EditingSession(next, phase: before.inputPhase));
+        return;
+      }
+    }
+    press(const AtomKey(',', AtomKind.separator));
+  }
 
   /// Replaces the input line with a stored expression (history recall).
   void recallExpression(String expressionJson) {
@@ -177,10 +225,21 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
   // -------------------------------------------------------------- evaluation
 
   Future<void> _requestPreview() async {
-    final snapshot = state;
+    var snapshot = state;
     if (snapshot.inputPhase != InputPhase.editing) return;
     final ticket = ++_ticket;
-    if (snapshot.rootSequence.isEmpty) {
+    if (snapshot.substitution != null) {
+      // What CALC showed - a result or a message - belonged to the expression as it was.
+      snapshot = snapshot.copyWith(
+        substitution: null,
+        errorMessage: null,
+        livePreviewPrimary: '',
+        livePreviewSecondary: null,
+      );
+      state = snapshot;
+    }
+    // A preview of Rand would be a number that `=` does not give again.
+    if (snapshot.rootSequence.isEmpty || ExpressionVariables.mentions(snapshot.rootSequence, 'Rand')) {
       state = snapshot.copyWith(livePreviewPrimary: '', livePreviewSecondary: null);
       return;
     }
@@ -230,6 +289,7 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
         livePreviewPrimary: outcome.primary,
         livePreviewSecondary: outcome.secondary,
         errorMessage: null,
+        substitution: null,
         variables: <String, String>{...state.variables, 'Ans': value},
         isEvaluatingHeavy: false,
         isInverseActive: false,
@@ -252,14 +312,118 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
       );
       unawaited(ref.read(historyProvider.notifier).refresh());
     } else {
+      final error = outcome.error!;
       state = state.copyWith(
         inputPhase: InputPhase.errorLocked,
-        errorMessage: outcome.error!.message,
+        // A variable without a value is what CALC is for.
+        errorMessage: error.type == CalcErrorType.undefinedVariable ? '${error.message}$calcHint' : error.message,
         livePreviewPrimary: '',
         livePreviewSecondary: null,
+        substitution: null,
         isEvaluatingHeavy: false,
       );
       _haptics.error();
+    }
+  }
+
+  /// Added to the message of a variable that has no value.
+  static const String calcHint = ' · CALC asks for one';
+
+  /// The single-letter variables the expression depends on, in the order
+  /// they appear (what `CALC` asks for).
+  List<String> freeVariables() => ExpressionVariables.free(state.rootSequence);
+
+  /// `CALC`: evaluates the expression with [values] standing in for its
+  /// variables - encoded values by variable name - and shows the result in
+  /// the result row, labelled with [note] (`x = 5`).
+  ///
+  /// Nothing else changes: the variables keep what they had stored, `Ans`
+  /// and the history stay as they were, and the expression remains in the
+  /// editor for the next set of values. [entries] is what was typed for each
+  /// variable (see [calcEntries]).
+  Future<void> evaluateWith(
+    Map<String, String> values, {
+    required String note,
+    Map<String, String> entries = const <String, String>{},
+  }) =>
+      _evaluateWith(values, note: note, entries: entries);
+
+  /// [refresh]: the same values again after a change of mode, without the
+  /// feedback of a key.
+  Future<void> _evaluateWith(
+    Map<String, String> values, {
+    required String note,
+    required Map<String, String> entries,
+    bool refresh = false,
+  }) async {
+    final snapshot = state;
+    if (snapshot.rootSequence.isEmpty) return;
+    _calcValues = Map<String, String>.unmodifiable(values);
+    _calcEntries = Map<String, String>.unmodifiable(entries);
+    final ticket = ++_ticket;
+    _heavyTimer?.cancel();
+    _heavyTimer = Timer(_heavyThreshold, () {
+      if (ticket == _ticket) state = state.copyWith(isEvaluatingHeavy: true);
+    });
+    final outcome = await _evaluator.evaluate(
+      EvaluationRequest(
+        root: snapshot.rootSequence,
+        context: snapshot.mathContext,
+        variables: <String, String>{...snapshot.variables, ...values},
+        isCommit: true,
+      ),
+    );
+    _heavyTimer?.cancel();
+    if (ticket != _ticket) {
+      state = state.copyWith(isEvaluatingHeavy: false);
+      return; // the expression changed in the meantime
+    }
+    // The caret stays where it was unless a result or an error was on display.
+    final caret = snapshot.inputPhase == InputPhase.editing
+        ? snapshot.cursorPath
+        : CursorPath.root(snapshot.rootSequence.length).toRecords();
+    if (outcome.isSuccess) {
+      _substituted = outcome.valueEncoded;
+      state = state.copyWith(
+        inputPhase: InputPhase.editing,
+        cursorPath: caret,
+        livePreviewPrimary: outcome.primary,
+        livePreviewSecondary: outcome.secondary,
+        errorMessage: null,
+        substitution: note,
+        isEvaluatingHeavy: false,
+        isInverseActive: refresh ? null : false,
+        isHyperbolicActive: refresh ? null : false,
+      );
+      if (!refresh) _haptics.medium();
+    } else {
+      // The line is not locked: these values failed, the next ones may not.
+      _substituted = null;
+      state = state.copyWith(
+        inputPhase: InputPhase.editing,
+        cursorPath: caret,
+        errorMessage: outcome.error!.message,
+        livePreviewPrimary: '',
+        livePreviewSecondary: null,
+        substitution: note,
+        isEvaluatingHeavy: false,
+        isInverseActive: refresh ? null : false,
+        isHyperbolicActive: refresh ? null : false,
+      );
+      if (!refresh) _haptics.error();
+    }
+  }
+
+  /// After a change of mode or of a stored variable, what is on display is
+  /// worked out again: with the values of `CALC` while its result is showing,
+  /// otherwise as the preview.
+  void _refresh() {
+    final s = state;
+    final note = s.substitution;
+    if (s.inputPhase == InputPhase.editing && note != null) {
+      unawaited(_evaluateWith(_calcValues, note: note, entries: _calcEntries, refresh: true));
+    } else {
+      unawaited(_requestPreview());
     }
   }
 
@@ -303,6 +467,13 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
 
   void toggleHyperbolic() => state = state.copyWith(isHyperbolicActive: !state.isHyperbolicActive);
 
+  /// Releases `INV` and `HYP` (after a key that is no key of the editor).
+  void releaseShift() {
+    if (state.isInverseActive || state.isHyperbolicActive) {
+      state = state.copyWith(isInverseActive: false, isHyperbolicActive: false);
+    }
+  }
+
   void setActiveTab(int index) {
     if (index < 0 || index > 4 || index == state.activeTabIndex) return;
     state = state.copyWith(activeTabIndex: index);
@@ -314,8 +485,35 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
             angleUnit: state.angleUnit,
             juxtaposition: state.juxtapositionMode,
             complexEnabled: state.isComplexEnabled,
+            engineeringNotation: state.isEngineering,
           ),
     );
+  }
+
+  /// `ENG`: engineering notation (exponents in steps of three) on and off.
+  /// The result on display is rewritten at once.
+  void toggleEngineering() {
+    state = state.copyWith(notation: state.isEngineering ? NotationMode.auto : NotationMode.engineering);
+    _saveSettings();
+    final s = state;
+    final calc = s.substitution != null && s.inputPhase == InputPhase.editing;
+    if (calc && s.errorMessage != null) return; // the message of a CALC that failed: no number to rewrite
+    final shown = s.inputPhase == InputPhase.committedResult ? s.variables['Ans'] : (calc ? _substituted : null);
+    if (shown == null) {
+      unawaited(_requestPreview());
+      return;
+    }
+    // The short form of a giant factorial (m × 10^E) is all there is of it.
+    if (s.livePreviewPrimary.contains(' × 10^')) return;
+    try {
+      final value = CalcValueCodec.decode(shown);
+      state = s.copyWith(
+        livePreviewPrimary: MathEngine.format(value, s.mathContext),
+        livePreviewSecondary: NumberFormatter.formatSecondary(value, notation: s.notation),
+      );
+    } on Object {
+      // Keep the result as it is written.
+    }
   }
 
   /// DEG → RAD → GRAD → DEG.
@@ -323,13 +521,13 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
     const order = AngleUnit.values;
     state = state.copyWith(angleUnit: order[(state.angleUnit.index + 1) % order.length]);
     _saveSettings();
-    unawaited(_requestPreview());
+    _refresh();
   }
 
   void toggleComplex() {
     state = state.copyWith(isComplexEnabled: !state.isComplexEnabled);
     _saveSettings();
-    unawaited(_requestPreview());
+    _refresh();
   }
 
   void toggleJuxtaposition() {
@@ -339,7 +537,7 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
           : JuxtapositionMode.standardTi,
     );
     _saveSettings();
-    unawaited(_requestPreview());
+    _refresh();
   }
 
   // ---------------------------------------------------------------- variables
@@ -347,7 +545,7 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
   void _setVariable(String name, String encoded) {
     state = state.copyWith(variables: <String, String>{...state.variables, name: encoded});
     unawaited(_repository.saveVariable(name, encoded));
-    unawaited(_requestPreview());
+    _refresh();
   }
 
   /// Stores the last result (`Ans`) in [name].
@@ -364,6 +562,9 @@ class CalculatorNotifier extends Notifier<CalculatorUiState> {
   Future<CalcValue?> _currentValue() async {
     final s = state;
     if (s.inputPhase == InputPhase.committedResult) return CalcValueCodec.decode(s.variables['Ans'] ?? '0');
+    if (s.inputPhase == InputPhase.editing && s.substitution != null && _substituted != null) {
+      return CalcValueCodec.decode(_substituted!); // what CALC has on display
+    }
     if (s.rootSequence.isEmpty) return null;
     final outcome = await _evaluator.evaluate(
       EvaluationRequest(root: s.rootSequence, context: s.mathContext, variables: s.variables, isCommit: true),

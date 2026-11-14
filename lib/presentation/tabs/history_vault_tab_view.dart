@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,8 +10,11 @@ import '../../domain/models/calc_value_codec.dart';
 import '../state/calculator_notifier.dart';
 import '../widgets/app_icons.dart';
 import '../widgets/app_text_field.dart';
+import '../widgets/app_toast.dart';
+import '../widgets/expression_text.dart';
 import '../widgets/lab_widgets.dart';
 import '../widgets/result_text.dart';
+import '../widgets/shell_layout.dart';
 
 /// Tab 5: the searchable history tape and the variable slot editor.
 class HistoryVaultTabView extends ConsumerStatefulWidget {
@@ -113,8 +117,10 @@ class _TapePage extends ConsumerWidget {
   }
 }
 
-/// One history entry: tap to recall the expression, `Ans` to insert the
-/// result, `×` to delete.
+/// One history entry: a tap recalls the expression for editing, `Ans` inserts
+/// the result at the caret, a long press opens the entry in full
+/// ([HistoryDetailSheet]) and `×` deletes it. Recalling and inserting bring
+/// the keypad back.
 class HistoryTile extends ConsumerWidget {
   const HistoryTile({super.key, required this.entry, this.onUsed, this.dense = false});
 
@@ -132,7 +138,9 @@ class HistoryTile extends ConsumerWidget {
       onTap: () {
         notifier.recallExpression(entry.expressionJson);
         onUsed?.call();
+        ShellLayout.showKeypad(context);
       },
+      onLongPress: () => HistoryDetailSheet.show(context, entry),
       child: Container(
         padding: EdgeInsets.symmetric(vertical: dense ? 6 : 8),
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.panelBorder))),
@@ -143,11 +151,12 @@ class HistoryTile extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Expanded(
-                        child: Text(
-                          AppTypography.signs(entry.expressionText),
-                          maxLines: 1,
+                        child: ExpressionText(
+                          entry.expressionText,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.mono(size: 12.5, color: AppColors.textSecondary),
                         ),
@@ -161,7 +170,11 @@ class HistoryTile extends ConsumerWidget {
                   const SizedBox(height: 2),
                   SizedBox(
                     height: dense ? 22 : 26,
-                    child: ResultText(entry.resultPrimary, fontSize: dense ? 16 : 19, prefix: '='),
+                    child: ResultText(
+                      ResultText.lead(entry.resultPrimary, entry.resultSecondary),
+                      fontSize: dense ? 16 : 19,
+                      prefix: '=',
+                    ),
                   ),
                 ],
               ),
@@ -170,11 +183,9 @@ class HistoryTile extends ConsumerWidget {
             SmallButton(
               'Ans',
               onTap: () {
-                // "m × 10^n" becomes the literal mEn; compound results (complex
-                // numbers) are wrapped so they stay one operand.
-                final literal = entry.resultPrimary.replaceAll(' × 10^', 'E');
-                notifier.pasteText(literal.contains(' ') ? '($literal)' : literal);
+                notifier.insertValue(entry.resultPrimary);
                 onUsed?.call();
+                ShellLayout.showKeypad(context);
               },
             ),
             if (!dense)
@@ -187,6 +198,129 @@ class HistoryTile extends ConsumerWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A history entry in full: the whole expression, every digit of the result
+/// and buttons that copy either one. Opened by a long press on a tile.
+class HistoryDetailSheet extends ConsumerWidget {
+  const HistoryDetailSheet({super.key, required this.entry});
+
+  final HistoryEntry entry;
+
+  /// Slides the sheet up from the bottom edge.
+  static Future<void> show(BuildContext context, HistoryEntry entry) => Navigator.of(context).push<void>(
+        PageRouteBuilder<void>(
+          opaque: false,
+          barrierDismissible: true,
+          barrierColor: AppColors.scrim,
+          barrierLabel: 'Close',
+          transitionDuration: const Duration(milliseconds: 180),
+          reverseTransitionDuration: const Duration(milliseconds: 140),
+          pageBuilder: (context, _, __) => HistoryDetailSheet(entry: entry),
+          transitionsBuilder: (context, animation, _, child) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero)
+                  .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
+          ),
+        ),
+      );
+
+  Future<void> _copy(BuildContext context, WidgetRef ref, String text, String confirmation) async {
+    final navigator = Navigator.of(context);
+    final toast = ref.read(toastProvider.notifier);
+    await Clipboard.setData(ClipboardData(text: text));
+    navigator.pop();
+    toast.show(confirmation);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final secondary = entry.resultSecondary;
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 560, maxHeight: MediaQuery.sizeOf(context).height * 0.72),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.cardSurface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.cardBorder),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        const Expanded(child: SectionLabel('Calculation')),
+                        Text(
+                          '${entry.angleUnit.toUpperCase()} · ${_timeLabel(entry.createdAt)}',
+                          style: AppTypography.ui(size: 11, color: AppColors.textFaint),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            ExpressionText(
+                              entry.expressionText,
+                              style: AppTypography.mono(size: 14, color: AppColors.textSecondary, height: 1.35),
+                            ),
+                            const SizedBox(height: 10),
+                            ResultText(entry.resultPrimary, fontSize: 18, prefix: '=', wrap: true),
+                            if (secondary != null && secondary.isNotEmpty) ...<Widget>[
+                              const SizedBox(height: 4),
+                              ResultText(
+                                secondary,
+                                fontSize: 13,
+                                color: AppColors.textMuted,
+                                weight: AppWeight.regular,
+                                prefix: '=',
+                                wrap: true,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.end,
+                      children: <Widget>[
+                        SmallButton(
+                          'Copy expression',
+                          onTap: () => _copy(context, ref, entry.expressionText, 'Expression copied'),
+                        ),
+                        SmallButton(
+                          'Copy result',
+                          primary: true,
+                          onTap: () => _copy(context, ref, entry.resultPrimary, 'Result copied'),
+                        ),
+                        SmallButton('Close', onTap: () => Navigator.of(context).pop()),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

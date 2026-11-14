@@ -63,6 +63,8 @@ abstract final class InputPhaseMachine {
         switch (kind) {
           case TemplateKind.fraction:
             return MathPrintController.insertFraction(e);
+          case TemplateKind.mixedFraction:
+            return MathPrintController.insertMixedFraction(e);
           case TemplateKind.power:
             return MathPrintController.insertPower(e);
           case TemplateKind.square:
@@ -89,6 +91,10 @@ abstract final class InputPhaseMachine {
             return MathPrintController.insertFunction(e, name ?? '', arity: arity);
           case TemplateKind.integral:
             return MathPrintController.insertIntegral(e);
+          case TemplateKind.summation:
+            return MathPrintController.insertIntegral(e, operator: BoundedOperator.sum);
+          case TemplateKind.product:
+            return MathPrintController.insertIntegral(e, operator: BoundedOperator.product);
           case TemplateKind.derivative:
             return MathPrintController.insertDerivative(e);
         }

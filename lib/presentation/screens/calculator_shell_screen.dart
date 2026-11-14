@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,14 +16,19 @@ import '../tabs/history_vault_tab_view.dart';
 import '../tabs/scientific_tab_view.dart';
 import '../tabs/standard_tab_view.dart';
 import '../tabs/unit_converter_tab_view.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/lab_widgets.dart';
 import '../widgets/persistent_display_card.dart';
 import '../widgets/segmented_tab_bar.dart';
+import '../widgets/shell_layout.dart';
 
 /// The single screen of the app.
 ///
-/// * **Portrait** (width < 600 dp): display card (35 %), segmented tab bar
-///   (7 %), active tab (58 %, kept alive in an `IndexedStack`).
+/// * **Portrait** (width < 600 dp): display card (a third of the screen),
+///   segmented tab bar (7 %), active tab (the rest, kept alive in an
+///   `IndexedStack`). On the tabs that bring their own input and read-out -
+///   Lab, Convert, History - the card folds into a single-line bar and the
+///   tab gets the space; a tap on the bar opens the card again.
 /// * **Landscape** (width ≥ 600 dp): dual-pane workbench - the specialised
 ///   tabs on the left (52 %), the display card stacked above the standard
 ///   keypad on the right (48 %).
@@ -32,6 +39,18 @@ class CalculatorShellScreen extends ConsumerStatefulWidget {
   static const double landscapeBreakpoint = 600;
 
   static const List<String> tabLabels = <String>['Standard', 'Scientific', 'Lab', 'Convert', 'History'];
+
+  /// Index of the first tab that works without the main display.
+  static const int firstWorkspaceTab = 2;
+
+  /// How long the display card takes to fold or unfold.
+  static const Duration displayTransition = Duration(milliseconds: 220);
+
+  /// Height of the open display card in portrait: a third of the screen,
+  /// between 210 and 310 dp, and never more than 45 % of the space there is
+  /// (a split-screen window can be very short).
+  static double displayHeight(double screenHeight, double available) =>
+      math.min((screenHeight * 0.33).clamp(210.0, 310.0).toDouble(), available * 0.45);
 
   @override
   ConsumerState<CalculatorShellScreen> createState() => _CalculatorShellScreenState();
@@ -48,6 +67,9 @@ class _CalculatorShellScreenState extends ConsumerState<CalculatorShellScreen> {
   final FocusNode _keyboardFocus = FocusNode(debugLabel: 'calculator keyboard');
 
   bool _historyOpen = false;
+
+  /// The user opened the folded display on a workspace tab.
+  bool _displayPinnedOpen = false;
 
   @override
   void dispose() {
@@ -86,6 +108,7 @@ class _CalculatorShellScreenState extends ConsumerState<CalculatorShellScreen> {
             '%' => const AtomKey('%', AtomKind.unaryPostfix),
             '.' || ',' => const AtomKey('.', AtomKind.digit),
             'x' => const AtomKey('x', AtomKind.variable),
+            'y' => const AtomKey('y', AtomKind.variable),
             'e' => const AtomKey('e', AtomKind.constant),
             'p' => const AtomKey('π', AtomKind.constant),
             _ => RegExp(r'^\d$').hasMatch(character) ? AtomKey(character, AtomKind.digit) : null,
@@ -112,48 +135,61 @@ class _CalculatorShellScreenState extends ConsumerState<CalculatorShellScreen> {
     return KeyEventResult.handled;
   }
 
-  Widget _card(int tabCount) => PersistentDisplayCard(
+  Widget _card(int tabCount, {VoidCallback? onToggleCompact}) => PersistentDisplayCard(
         tabCount: tabCount,
         historyOpen: _historyOpen,
         onToggleHistory: _toggleHistory,
+        onToggleCompact: onToggleCompact,
       );
 
-  Widget _portrait(int active) => Column(
-        children: <Widget>[
-          Expanded(flex: 35, child: _card(5)),
-          Expanded(
-            flex: 7,
-            child: Center(
-              child: SegmentedTabBar(
-                labels: CalculatorShellScreen.tabLabels,
-                selectedIndex: active,
-                onSelected: _selectTab,
-                height: 40,
-              ),
+  Widget _portrait(int active, double height, double screenHeight) {
+    final workspace = active >= CalculatorShellScreen.firstWorkspaceTab;
+    final folded = workspace && !_displayPinnedOpen;
+    final full = CalculatorShellScreen.displayHeight(screenHeight, height);
+    return Column(
+      children: <Widget>[
+        AnimatedContainer(
+          duration: CalculatorShellScreen.displayTransition,
+          curve: Curves.easeOutCubic,
+          height: folded ? PersistentDisplayCard.barHeight : full,
+          child: _card(
+            5,
+            onToggleCompact: workspace ? () => setState(() => _displayPinnedOpen = !_displayPinnedOpen) : null,
+          ),
+        ),
+        SizedBox(
+          height: height * 0.07,
+          child: Center(
+            child: SegmentedTabBar(
+              labels: CalculatorShellScreen.tabLabels,
+              selectedIndex: active,
+              onSelected: _selectTab,
+              height: 40,
             ),
           ),
-          Expanded(
-            flex: 58,
-            child: Stack(
-              children: <Widget>[
-                Positioned.fill(
-                  child: IndexedStack(
-                    index: active,
-                    children: <Widget>[
-                      StandardTabView(key: _standardKey),
-                      ScientificTabView(key: _scientificKey),
-                      AdvancedLabTabView(key: _labKey),
-                      UnitConverterTabView(key: _convertKey),
-                      HistoryVaultTabView(key: _historyKey),
-                    ],
-                  ),
+        ),
+        Expanded(
+          child: Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: IndexedStack(
+                  index: active,
+                  children: <Widget>[
+                    StandardTabView(key: _standardKey),
+                    ScientificTabView(key: _scientificKey),
+                    AdvancedLabTabView(key: _labKey),
+                    UnitConverterTabView(key: _convertKey),
+                    HistoryVaultTabView(key: _historyKey),
+                  ],
                 ),
-                if (_historyOpen) Positioned.fill(child: _QuickHistory(onClose: _toggleHistory)),
-              ],
-            ),
+              ),
+              if (_historyOpen) Positioned.fill(child: _QuickHistory(onClose: _toggleHistory)),
+            ],
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 
   Widget _landscape(int active) {
     // The standard keypad is pinned on the right, so the left pane starts at
@@ -212,6 +248,11 @@ class _CalculatorShellScreenState extends ConsumerState<CalculatorShellScreen> {
   @override
   Widget build(BuildContext context) {
     final active = ref.watch(calculatorProvider.select((s) => s.activeTabIndex));
+    // Every tab starts with the display in its own default state.
+    ref.listen<int>(calculatorProvider.select((s) => s.activeTabIndex), (_, __) {
+      if (_displayPinnedOpen) setState(() => _displayPinnedOpen = false);
+    });
+    final screenHeight = MediaQuery.sizeOf(context).height;
     return ColoredBox(
       color: AppColors.bgObsidian,
       child: SafeArea(
@@ -219,12 +260,18 @@ class _CalculatorShellScreenState extends ConsumerState<CalculatorShellScreen> {
           focusNode: _keyboardFocus,
           autofocus: true,
           onKeyEvent: _onKey,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: LayoutBuilder(
-              builder: (context, constraints) => constraints.maxWidth + 24 < CalculatorShellScreen.landscapeBreakpoint
-                  ? _portrait(active)
-                  : _landscape(active),
+          child: ToastHost(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final dualPane = constraints.maxWidth + 24 >= CalculatorShellScreen.landscapeBreakpoint;
+                  return ShellLayout(
+                    dualPane: dualPane,
+                    child: dualPane ? _landscape(active) : _portrait(active, constraints.maxHeight, screenHeight),
+                  );
+                },
+              ),
             ),
           ),
         ),

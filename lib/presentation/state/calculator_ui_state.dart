@@ -8,7 +8,7 @@ import '../../domain/models/math_context.dart';
 // domain (the evaluator and the editor need them too) and are re-exported
 // from here.
 export '../../domain/editor/input_phase.dart' show InputPhase;
-export '../../domain/models/math_context.dart' show AngleUnit, JuxtapositionMode;
+export '../../domain/models/math_context.dart' show AngleUnit, JuxtapositionMode, NotationMode;
 
 const Object _keep = Object();
 
@@ -26,6 +26,14 @@ class CalculatorUiState {
   final bool isHyperbolicActive; // HYP toggle
   final bool isComplexEnabled; // REAL vs CPLX mode
   final JuxtapositionMode juxtapositionMode;
+
+  /// How results are written: [NotationMode.engineering] while ENG is on.
+  final NotationMode notation;
+
+  /// Set while the result row shows what `CALC` computed: the values that
+  /// stood in for the variables, e.g. `x = 5, y = 2`. The variables
+  /// themselves keep what they had stored.
+  final String? substitution;
   final bool isEvaluatingHeavy; // True when background isolate > 50ms
   final Map<String, String> variables; // 'Ans', 'M', 'A'..'Z'
   final List<EditorSequence> undoStack;
@@ -44,6 +52,8 @@ class CalculatorUiState {
     this.isHyperbolicActive = false,
     this.isComplexEnabled = false,
     this.juxtapositionMode = JuxtapositionMode.standardTi,
+    this.notation = NotationMode.auto,
+    this.substitution,
     this.isEvaluatingHeavy = false,
     this.variables = const {'Ans': '0', 'M': '0'},
     this.undoStack = const [],
@@ -64,13 +74,21 @@ class CalculatorUiState {
         angleUnit: angleUnit,
         juxtaposition: juxtapositionMode,
         complexMode: isComplexEnabled ? ComplexMode.complex : ComplexMode.real,
+        notation: notation,
       );
+
+  bool get isEngineering => notation == NotationMode.engineering;
 
   bool get canUndo => undoStack.isNotEmpty;
   bool get canRedo => redoStack.isNotEmpty;
 
   /// Whether the independent memory holds something.
   bool get hasMemory => (variables['M'] ?? '0') != '0';
+
+  /// Parentheses that are still open around the caret (the badge on the
+  /// `( )` key).
+  int get unclosedParenthesesCount =>
+      inputPhase == InputPhase.editing ? MathPrintController.openParentheses(editor) : 0;
 
   CalculatorUiState copyWith({
     EditorSequence? rootSequence,
@@ -85,6 +103,8 @@ class CalculatorUiState {
     bool? isHyperbolicActive,
     bool? isComplexEnabled,
     JuxtapositionMode? juxtapositionMode,
+    NotationMode? notation,
+    Object? substitution = _keep,
     bool? isEvaluatingHeavy,
     Map<String, String>? variables,
     List<EditorSequence>? undoStack,
@@ -104,6 +124,8 @@ class CalculatorUiState {
         isHyperbolicActive: isHyperbolicActive ?? this.isHyperbolicActive,
         isComplexEnabled: isComplexEnabled ?? this.isComplexEnabled,
         juxtapositionMode: juxtapositionMode ?? this.juxtapositionMode,
+        notation: notation ?? this.notation,
+        substitution: identical(substitution, _keep) ? this.substitution : substitution as String?,
         isEvaluatingHeavy: isEvaluatingHeavy ?? this.isEvaluatingHeavy,
         variables: variables ?? this.variables,
         undoStack: undoStack ?? this.undoStack,

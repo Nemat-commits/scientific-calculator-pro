@@ -35,10 +35,12 @@ keystore.properties
 .env
 .env.*
 
-# Build artefacts are not kept in git (see README, "Download")
+# Build artefacts are not kept in git, except the APKs of a published version
+# in releases/ (see README, "Download")
 *.apk
 *.aab
 *.ipa
+!/releases/*.apk
 
 # IDE / OS
 .idea/
