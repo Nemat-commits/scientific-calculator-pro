@@ -16,8 +16,10 @@ import 'package:modern_scientific_calculator/domain/models/math_context.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_notifier.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/advanced_lab_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/history_vault_tab_view.dart';
+import 'package:modern_scientific_calculator/presentation/tabs/scientific_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/standard_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/unit_converter_tab_view.dart';
+import 'package:modern_scientific_calculator/presentation/widgets/calc_prompt.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/lab_widgets.dart';
 
 import '../support/test_app.dart';
@@ -165,6 +167,76 @@ void main() {
     n.press(const ClearKey());
     n.pasteText('1+2+3+4+5+6+7+8+9+10+11+12+13+14+15+16+17+18+19+20+21+22+23+24+25');
     await capture(tester, '05_portrait_long_expression');
+
+    // Σ x² from 1 to 10, plus a mixed fraction times a number in polar form.
+    n.press(const ClearKey());
+    for (final key in <CalcKey>[
+      const TemplateKey(TemplateKind.summation),
+      digit('1'),
+      right,
+      digit('1'),
+      digit('0'),
+      right,
+      const AtomKey('x', AtomKind.variable),
+      const TemplateKey(TemplateKind.square),
+      right,
+      right,
+      op('+'),
+      const TemplateKey(TemplateKind.mixedFraction),
+      digit('2'),
+      right,
+      digit('1'),
+      right,
+      digit('3'),
+      right,
+      op('×'),
+      digit('2'),
+      op('∠'),
+      digit('3'),
+      digit('0'),
+    ]) {
+      n.press(key);
+    }
+    await capture(tester, '05_portrait_sum_mixed_polar');
+    await commit(tester, container);
+    await capture(tester, '05_portrait_sum_mixed_polar_result');
+    // The same with INV on: the keys it changes are amber.
+    n.toggleInverse();
+    await capture(tester, '05_portrait_sum_mixed_polar_inv');
+    n.toggleInverse();
+    n.toggleComplex(); // ∠ had switched it on
+
+    // CALC: x² + 3y for x = 5 and y = 2. The formula stays in the editor.
+    n.press(const ClearKey());
+    for (final key in <CalcKey>[
+      const AtomKey('x', AtomKind.variable),
+      const TemplateKey(TemplateKind.square),
+      op('+'),
+      digit('3'),
+      const AtomKey('y', AtomKind.variable),
+    ]) {
+      n.press(key);
+    }
+    await settle(tester);
+    await tapKeys(ScientificTabView, <String>['CALC, evaluate with values for the variables']);
+    await settle(tester);
+    await tapKeys(CalcPrompt, <String>['5', '⏎', '2']);
+    await capture(tester, '05_portrait_calc_prompt');
+    await tapText('Evaluate');
+    await capture(tester, '05_portrait_calc_result');
+
+    // Engineering notation, and the row of further functions.
+    n.press(const ClearKey());
+    n.pasteText('12345×67');
+    await commit(tester, container);
+    n.toggleEngineering();
+    await capture(tester, '05_portrait_engineering');
+    n.toggleEngineering();
+    await tapKeys(ScientificTabView, <String>['Show more functions']);
+    await capture(tester, '05_portrait_more_functions');
+    await tapKeys(ScientificTabView, <String>['Hide the extra functions']);
+    await settle(tester);
+
     n.press(const ClearKey());
     n.pasteText('x^2-3x+2');
 
@@ -198,6 +270,11 @@ void main() {
     await settle(tester);
     await tapKeys(UnitConverterTabView, <String>['2', '.', '5']);
     await capture(tester, '08_portrait_convert');
+    // The data units: 1 MB in the units of both families.
+    await tapText('Data');
+    await tapText('MB');
+    await tapKeys(UnitConverterTabView, <String>['Clear', '1']);
+    await capture(tester, '08_portrait_convert_data');
     // "Constants" is the last chip of a horizontally scrolling row.
     await tester.drag(
       find.descendant(of: find.byType(UnitConverterTabView), matching: find.byType(ChoiceChips)),

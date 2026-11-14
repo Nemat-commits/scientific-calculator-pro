@@ -30,7 +30,7 @@ android {
         applicationId = "com.scientific.calculator.modern"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Taken from `version:` in pubspec.yaml (3.1.0+2).
+        // Taken from `version:` in pubspec.yaml (3.2.0+3).
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

@@ -108,6 +108,7 @@ class _CalculatorShellScreenState extends ConsumerState<CalculatorShellScreen> {
             '%' => const AtomKey('%', AtomKind.unaryPostfix),
             '.' || ',' => const AtomKey('.', AtomKind.digit),
             'x' => const AtomKey('x', AtomKind.variable),
+            'y' => const AtomKey('y', AtomKind.variable),
             'e' => const AtomKey('e', AtomKind.constant),
             'p' => const AtomKey('π', AtomKind.constant),
             _ => RegExp(r'^\d$').hasMatch(character) ? AtomKey(character, AtomKind.digit) : null,

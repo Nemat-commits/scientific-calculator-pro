@@ -35,6 +35,16 @@ class ResultText extends StatelessWidget {
 
   static final RegExp _exponent = RegExp(r'e(-?\d+)|\s*×\s*10\^(-?\d+)');
 
+  /// Whether the read-out [secondary] should stand in front of [primary]: a
+  /// complex number leads with its short form, because both of its parts at
+  /// full length do not fit a line at a readable size.
+  static bool leadsWithSecondary(String primary, String? secondary) =>
+      secondary != null && secondary.isNotEmpty && primary.endsWith('i');
+
+  /// The read-out of a result to show where there is room for one.
+  static String lead(String primary, String? secondary) =>
+      leadsWithSecondary(primary, secondary) ? secondary! : primary;
+
   /// Splits [text] into plain runs and exponents.
   static List<(String text, bool superscript)> segments(String text) {
     final grouped = NumberFormatter.groupThousands(text);

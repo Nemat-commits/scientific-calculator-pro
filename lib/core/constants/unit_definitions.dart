@@ -42,6 +42,9 @@ final class UnitCategory {
 
   UnitDef unit(String unitId) => units.firstWhere((u) => u.id == unitId);
 
+  /// Whether units of this category say how they are built (see [UnitDef.step]).
+  bool get hasSteps => units.any((u) => u.step != null);
+
   /// The unit a conversion starts from: the base unit, except for
   /// temperatures, where the everyday scale comes first.
   UnitDef get defaultUnit =>

@@ -391,6 +391,64 @@ void main() {
       expect(state().variables['Ans'], '15', reason: 'Ans is still the result of =');
     });
 
+    test('a change of mode works the result out again with the same values', () async {
+      type(<CalcKey>[const TemplateKey(TemplateKind.function, name: 'sin'), x]);
+      await calculator.evaluateWith(
+        <String, String>{'x': number('30')},
+        note: 'x = 30',
+        entries: <String, String>{'x': '30'},
+      );
+      expect(state().livePreviewPrimary, '0.5');
+      calculator.toggleInverse();
+
+      calculator.cycleAngleUnit(); // DEG → RAD
+      await idle();
+      expect(state().substitution, 'x = 30');
+      expect(state().livePreviewPrimary, '-0.9880316240928617899877489072944582'); // sin(30 rad)
+      expect(state().isInverseActive, isTrue, reason: 'no key was pressed');
+      expect(calculator.calcEntries, <String, String>{'x': '30'});
+    });
+
+    test('remembers what was typed for as long as its result is on display', () async {
+      type(<CalcKey>[x, op('+'), digit('1')]);
+      expect(calculator.calcEntries, isEmpty);
+      await calculator.evaluateWith(
+        <String, String>{'x': number('1/2')},
+        note: 'x = 1/2',
+        entries: <String, String>{'x': '1/2'},
+      );
+      expect(calculator.calcEntries, <String, String>{'x': '1/2'});
+      type(<CalcKey>[const MoveKey(CursorDirection.left)]);
+      expect(calculator.calcEntries, <String, String>{'x': '1/2'}, reason: 'the result is still there');
+      type(<CalcKey>[digit('2')]);
+      await idle();
+      expect(calculator.calcEntries, isEmpty, reason: 'the expression is another one now');
+    });
+
+    test('after values that failed, moving the caret brings the preview back', () async {
+      type(<CalcKey>[digit('2')]);
+      await calculator.evaluate();
+      calculator.storeAnswerIn('x');
+      type(<CalcKey>[const ClearKey(), digit('1'), op('÷'), x]);
+      await idle();
+      expect(state().livePreviewPrimary, '0.5');
+
+      await calculator.evaluateWith(<String, String>{'x': number('0')}, note: 'x = 0');
+      expect(state().errorMessage, isNotNull);
+      // ENG has no number to rewrite here and leaves the message alone.
+      calculator.toggleEngineering();
+      expect(state().errorMessage, isNotNull);
+      expect(state().substitution, 'x = 0');
+      calculator.toggleEngineering();
+
+      type(<CalcKey>[const MoveKey(CursorDirection.left)]);
+      await idle();
+      expect(state().errorMessage, isNull);
+      expect(state().substitution, isNull);
+      expect(state().livePreviewPrimary, '0.5');
+      expect(calculator.expressionText(), '1÷x');
+    });
+
     test('M+ adds what CALC has on display', () async {
       type(<CalcKey>[x, op('×'), digit('3')]);
       await calculator.evaluateWith(<String, String>{'x': number('4')}, note: 'x = 4');

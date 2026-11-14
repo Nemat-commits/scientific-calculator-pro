@@ -113,9 +113,8 @@ class _PersistentDisplayCardState extends ConsumerState<PersistentDisplayCard> {
     final committed = _showsResult(state);
     final failed = _showsError(state);
     final secondary = state.livePreviewSecondary;
-    // A complex number leads with its short form: both parts at full length
-    // do not fit the line at a readable size. A tap swaps the two as usual.
-    final shortFirst = secondary != null && state.livePreviewPrimary.endsWith('i');
+    // A complex number leads with its short form; a tap swaps the two as usual.
+    final shortFirst = ResultText.leadsWithSecondary(state.livePreviewPrimary, secondary);
     final swap = secondary != null && (_swapped != shortFirst);
     final primaryText = swap ? secondary : state.livePreviewPrimary;
     final secondaryText = swap ? state.livePreviewPrimary : secondary;

@@ -12,14 +12,17 @@ import '../../domain/models/calc_value.dart';
 import '../../domain/models/calc_value_codec.dart';
 import '../state/calculator_notifier.dart';
 import 'app_toast.dart';
+import 'expression_text.dart';
 import 'lab_widgets.dart';
 
 /// `CALC`: asks for a value for every variable of the expression and
 /// evaluates the expression with them.
 ///
 /// The values are for this evaluation only. Each field starts with what its
-/// variable has stored; nothing typed here is stored, and the expression
-/// stays in the editor, so `CALC` can be pressed again for other values.
+/// variable has stored - or, while the result of the previous `CALC` is on
+/// display, with what was typed for it. Nothing typed here is stored, and
+/// the expression stays in the editor, so `CALC` can be pressed again for
+/// other values.
 class CalcPrompt extends ConsumerStatefulWidget {
   const CalcPrompt({super.key, required this.variables, required this.expression});
 
@@ -77,7 +80,7 @@ class CalcPrompt extends ConsumerStatefulWidget {
 class _CalcPromptState extends ConsumerState<CalcPrompt> {
   late final List<String> _values;
 
-  /// Fields that still show the stored value: the first key replaces it.
+  /// Fields that still show the value they started with: the first key replaces it.
   late final List<bool> _untouched;
   final Set<int> _invalid = <int>{};
   int _active = 0;
@@ -86,9 +89,15 @@ class _CalcPromptState extends ConsumerState<CalcPrompt> {
   void initState() {
     super.initState();
     final stored = ref.read(calculatorProvider).variables;
+    final typed = ref.read(calculatorProvider.notifier).calcEntries;
     _values = <String>[
       for (final name in widget.variables)
-        if (stored[name] case final String encoded) _stored(encoded) else '',
+        if (typed[name] case final String entry)
+          entry
+        else if (stored[name] case final String encoded)
+          _stored(encoded)
+        else
+          '',
     ];
     _untouched = <bool>[for (final value in _values) value.isNotEmpty];
   }
@@ -118,6 +127,7 @@ class _CalcPromptState extends ConsumerState<CalcPrompt> {
 
   void _evaluate() {
     final encoded = <String, String>{};
+    final entries = <String, String>{};
     final shown = <String>[];
     final invalid = <int>{};
     for (var i = 0; i < _values.length; i++) {
@@ -125,6 +135,7 @@ class _CalcPromptState extends ConsumerState<CalcPrompt> {
       try {
         final value = text.isEmpty ? Values.zero : MathEngine.evaluateText(text).value;
         encoded[widget.variables[i]] = CalcValueCodec.encode(value);
+        entries[widget.variables[i]] = text.isEmpty ? '0' : text;
         shown.add('${widget.variables[i]} = ${text.isEmpty ? '0' : text}');
       } on CalcError {
         invalid.add(i);
@@ -139,7 +150,7 @@ class _CalcPromptState extends ConsumerState<CalcPrompt> {
       });
       return;
     }
-    ref.read(calculatorProvider.notifier).evaluateWith(encoded, note: shown.join(', '));
+    ref.read(calculatorProvider.notifier).evaluateWith(encoded, note: shown.join(', '), entries: entries);
     Navigator.of(context).pop();
   }
 
@@ -204,8 +215,8 @@ class _CalcPromptState extends ConsumerState<CalcPrompt> {
                         const SectionLabel('CALC'),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
-                            AppTypography.signs(widget.expression),
+                          child: ExpressionText(
+                            widget.expression,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.right,

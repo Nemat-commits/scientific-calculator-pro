@@ -9,14 +9,17 @@ import 'package:modern_scientific_calculator/domain/editor/math_print_controller
 import 'package:modern_scientific_calculator/domain/models/editor_node.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_notifier.dart';
 import 'package:modern_scientific_calculator/presentation/state/calculator_ui_state.dart';
+import 'package:modern_scientific_calculator/presentation/tabs/history_vault_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/scientific_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/tabs/standard_tab_view.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/app_toast.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/calc_key_button.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/calc_prompt.dart';
+import 'package:modern_scientific_calculator/presentation/widgets/expression_text.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/key_legend.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/lab_widgets.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/persistent_display_card.dart';
+import 'package:modern_scientific_calculator/presentation/widgets/result_text.dart';
 
 import '../support/test_app.dart';
 
@@ -358,6 +361,64 @@ void main() {
     });
   });
 
+  testWidgets('the tape writes an expression out with its angle sign and leads with the short form', (tester) async {
+    final (container, notifier) = await openScientific(tester);
+    notifier.pasteText('2∠30');
+    await commit(tester, container);
+    notifier.setActiveTab(4);
+    await settle(tester);
+
+    final tile = find.byType(HistoryTile).first;
+    // No bundled font has the angle sign: it is drawn.
+    expect(find.descendant(of: tile, matching: find.byType(AngleLegend)), findsOneWidget);
+    expect(find.descendant(of: tile, matching: find.textContaining('∠')), findsNothing);
+    final line = tester.widget<ExpressionText>(find.descendant(of: tile, matching: find.byType(ExpressionText)));
+    expect(line.text, '2∠30');
+    expect(
+      tester.widget<ResultText>(find.descendant(of: tile, matching: find.byType(ResultText))).value,
+      '1.732050808 + 1i',
+    );
+    // Ans still inserts every digit.
+    await tester.tap(find.descendant(of: tile, matching: find.text('Ans')));
+    await settle(tester);
+    expect(notifier.expressionText(), contains('1.732050807568877293527446341505872'));
+    expect(tester.takeException(), isNull);
+  });
+
+  // What .github/scripts/emulator_smoke.sh does on the emulator, key for key.
+  testWidgets('a hardware keyboard fills the slots of Σ and types a formula for CALC', (tester) async {
+    final (container, notifier) = await openScientific(tester);
+    await tapAll(tester, <Finder>[keyIn(ScientificTabView, 'sum')]);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1, character: '1');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit4, character: '4');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyX, character: 'x');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(notifier.expressionText(), 'Σ(1,4,x)');
+    expect(stateOf(container).inputPhase, InputPhase.committedResult);
+    expect(stateOf(container).livePreviewPrimary, '10');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    for (final character in <String>['x', '*', 'x', '+', '3']) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.space, character: character);
+    }
+    await settle(tester);
+    expect(notifier.expressionText(), 'x×x+3');
+    await tapAll(tester, <Finder>[keyIn(ScientificTabView, 'CALC, evaluate with values for the variables')]);
+    await settle(tester);
+    expect(find.byType(CalcPrompt), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit5, character: '5');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(find.byType(CalcPrompt), findsNothing);
+    expect(stateOf(container).livePreviewPrimary, '28');
+    expect(notifier.expressionText(), 'x×x+3');
+    expect(badge('x = 5'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   group('CALC', () {
     Future<void> typeFormula(CalculatorNotifier notifier) async {
       // x² + 3y
@@ -436,6 +497,37 @@ void main() {
       await settle(tester);
       expect(stateOf(container).livePreviewPrimary, '9');
       expect(stateOf(container).variables['x'], '7/2', reason: 'the stored value is untouched');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('starts from the values of the result on display, so one of them can be changed', (tester) async {
+      final (container, notifier) = await openScientific(tester);
+      await typeFormula(notifier);
+      await settle(tester);
+      await openPrompt(tester);
+      await tapAll(tester, <Finder>[promptKey('5'), promptKey('⏎'), promptKey('2'), promptKey('⏎')]);
+      await settle(tester);
+      expect(stateOf(container).livePreviewPrimary, '31');
+
+      // CALC again: the fields hold 5 and 2. A 6 replaces the 5, and y keeps its 2.
+      await openPrompt(tester);
+      expect(promptFields(tester).map((f) => f.value), <String>['5', '2']);
+      await tapAll(tester, <Finder>[promptKey('6')]);
+      expect(promptFields(tester).map((f) => f.value), <String>['6', '2']);
+      await tester.tap(find.text('Evaluate'));
+      await settle(tester);
+      expect(stateOf(container).livePreviewPrimary, '42');
+      expect(badge('x = 6, y = 2'), findsOneWidget);
+
+      // Once the formula is another one, the fields start from what is stored: nothing.
+      notifier
+        ..press(op('+'))
+        ..press(digit('1'));
+      await settle(tester);
+      expect(badge('x = 6, y = 2'), findsNothing);
+      await openPrompt(tester);
+      expect(promptFields(tester).map((f) => f.value), <String>['', '']);
+      expect(stateOf(container).variables['x'], isNull, reason: 'CALC has stored nothing');
       expect(tester.takeException(), isNull);
     });
 
@@ -544,6 +636,11 @@ void main() {
       await settle(tester);
       expect(find.byType(CalcPrompt), findsNothing);
       expect(stateOf(container).livePreviewPrimary, '33', reason: 'closing changes nothing');
+
+      // With the prompt gone the keyboard types into the formula again.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyY, character: 'y');
+      await settle(tester);
+      expect(notifier.expressionText(), '${formula}y');
       expect(tester.takeException(), isNull);
     });
 

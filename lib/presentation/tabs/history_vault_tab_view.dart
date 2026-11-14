@@ -11,6 +11,7 @@ import '../state/calculator_notifier.dart';
 import '../widgets/app_icons.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/expression_text.dart';
 import '../widgets/lab_widgets.dart';
 import '../widgets/result_text.dart';
 import '../widgets/shell_layout.dart';
@@ -153,8 +154,8 @@ class HistoryTile extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Expanded(
-                        child: Text(
-                          AppTypography.signs(entry.expressionText),
+                        child: ExpressionText(
+                          entry.expressionText,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.mono(size: 12.5, color: AppColors.textSecondary),
@@ -169,7 +170,11 @@ class HistoryTile extends ConsumerWidget {
                   const SizedBox(height: 2),
                   SizedBox(
                     height: dense ? 22 : 26,
-                    child: ResultText(entry.resultPrimary, fontSize: dense ? 16 : 19, prefix: '='),
+                    child: ResultText(
+                      ResultText.lead(entry.resultPrimary, entry.resultSecondary),
+                      fontSize: dense ? 16 : 19,
+                      prefix: '=',
+                    ),
                   ),
                 ],
               ),
@@ -272,8 +277,8 @@ class HistoryDetailSheet extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: <Widget>[
-                            Text(
-                              AppTypography.signs(entry.expressionText),
+                            ExpressionText(
+                              entry.expressionText,
                               style: AppTypography.mono(size: 14, color: AppColors.textSecondary, height: 1.35),
                             ),
                             const SizedBox(height: 10),

@@ -288,9 +288,10 @@ void main() {
       expect(free('2+3'), isEmpty);
     });
 
-    test('Ans and the memory are not variables to ask for', () {
+    test('Ans is not a variable to ask for; the memory M is one of the letters', () {
       expect(free('A×B+Ans'), <String>['A', 'B']);
       expect(free('Ans^2'), isEmpty);
+      expect(free('A×B+Ans+M'), <String>['A', 'B', 'M']);
     });
 
     test('the running variable of a template is not one of them', () {

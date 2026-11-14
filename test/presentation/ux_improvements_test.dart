@@ -2,6 +2,7 @@
 // the mode hints, the reworked keypads and the "send to calculator" paths.
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modern_scientific_calculator/core/constants/unit_definitions.dart';
 import 'package:modern_scientific_calculator/domain/editor/calc_key.dart';
 import 'package:modern_scientific_calculator/domain/models/editor_node.dart';
 import 'package:modern_scientific_calculator/presentation/screens/calculator_shell_screen.dart';
@@ -17,6 +18,7 @@ import 'package:modern_scientific_calculator/presentation/widgets/calc_key_butto
 import 'package:modern_scientific_calculator/presentation/widgets/key_legend.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/math_print_canvas.dart';
 import 'package:modern_scientific_calculator/presentation/widgets/persistent_display_card.dart';
+import 'package:modern_scientific_calculator/presentation/widgets/result_text.dart';
 
 import '../support/test_app.dart';
 
@@ -391,6 +393,65 @@ void main() {
       expect(stateOf(container).activeTabIndex, 0, reason: 'back at the keypad');
       expect(notifier.expressionText(), '2×33.8');
       expect(stateOf(container).livePreviewPrimary, '67.6');
+    });
+
+    group('data units', () {
+      Future<void> openData(WidgetTester tester, {Size? size}) async {
+        final container = size == null ? await pumpCalculator(tester) : await pumpCalculator(tester, size: size);
+        container.read(calculatorProvider.notifier).setActiveTab(3);
+        await settle(tester);
+        final data = inConverter(find.text('Data'));
+        await tester.ensureVisible(data);
+        await settle(tester);
+        await tester.tap(data);
+        await settle(tester);
+      }
+
+      /// The values of the rows that are not being typed, top to bottom.
+      List<String> shown(WidgetTester tester) =>
+          tester.widgetList<ResultText>(inConverter(find.byType(ResultText))).map((r) => r.value).toList();
+
+      Future<void> oneOf(WidgetTester tester, String symbol) async {
+        await tester.tap(inConverter(find.text(symbol)));
+        await settle(tester);
+        await tester.tap(keyIn(UnitConverterTabView, 'Clear').hitTestable());
+        await tester.tap(keyIn(UnitConverterTabView, '1').hitTestable());
+        await settle(tester);
+      }
+
+      testWidgets('every line says how its unit is built, and a note tells the two families apart', (tester) async {
+        await openData(tester);
+        for (final step in <String>['1000 B', '1024 B', '1000 kB', '1024 KiB', '1000 MB', '1024 MiB']) {
+          expect(inConverter(find.text(step)), findsOneWidget, reason: step);
+        }
+        expect(inConverter(find.text(UnitDefinitions.dataNote)), findsOneWidget);
+        expect(UnitDefinitions.dataNote, allOf(contains('steps of 1000'), contains('steps of 1024')));
+        // The names are written out in full where there is room for all of them.
+        expect(inConverter(find.text('Megabyte')), findsOneWidget);
+        expect(inConverter(find.text('Mebibyte')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('1 MB is 1000 kB, and 1 MiB is 1024 KiB', (tester) async {
+        await openData(tester);
+        await oneOf(tester, 'MB');
+        // bit, B, kB, KiB, then MiB and GB behind the line being typed.
+        expect(shown(tester).take(6), <String>['8000000', '1000000', '1000', '976.5625', '0.953674316406', '0.001']);
+
+        await oneOf(tester, 'MiB');
+        expect(shown(tester).take(5), <String>['8388608', '1048576', '1048.576', '1024', '1.048576']);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('a narrow screen keeps the steps and leaves the names out rather than cutting them', (tester) async {
+        await openData(tester, size: const Size(360, 640));
+        expect(inConverter(find.text('1000 B')), findsOneWidget);
+        expect(inConverter(find.text('1024 B')), findsOneWidget);
+        expect(inConverter(find.text('Kilobyte')), findsNothing);
+        expect(inConverter(find.text('Kibibyte')), findsNothing);
+        expect(inConverter(find.text('Byte')), findsOneWidget, reason: 'a unit without a step keeps its name');
+        expect(tester.takeException(), isNull);
+      });
     });
 
     testWidgets('the selected category chip scrolls into view', (tester) async {

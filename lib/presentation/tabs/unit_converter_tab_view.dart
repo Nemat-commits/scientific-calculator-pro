@@ -111,23 +111,16 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
               ),
             ),
             Expanded(
-              flex: 4,
-              child: Text.rich(
-                TextSpan(
-                  children: <InlineSpan>[
-                    // The step comes first: on a narrow screen the end is cut.
-                    if (unit.step != null)
-                      TextSpan(
-                        text: '${unit.step}  ',
-                        style: AppTypography.mono(size: 11.5, color: AppColors.textSecondary),
-                      ),
-                    TextSpan(text: unit.name),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.ui(size: 11.5, color: AppColors.textMuted),
-              ),
+              // Where units say how they are built, that takes half of the line.
+              flex: _current.hasSteps ? 5 : 4,
+              child: unit.step == null
+                  ? Text(
+                      unit.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: StepAndName.nameStyle,
+                    )
+                  : StepAndName(step: unit.step!, name: unit.name, category: _current),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -288,6 +281,72 @@ class _UnitConverterTabViewState extends ConsumerState<UnitConverterTabView> {
                   enterLabel: 'C',
                 ),
               ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// How a unit is built from the one below it (`1000 kB`) and its name.
+///
+/// The step always shows. The names show where every unit of the [category]
+/// has room for its own - in all of its lines or in none, never cut short.
+class StepAndName extends StatelessWidget {
+  const StepAndName({super.key, required this.step, required this.name, required this.category});
+
+  final String step;
+  final String name;
+  final UnitCategory category;
+
+  static final TextStyle stepStyle = AppTypography.mono(size: 11.5, color: AppColors.textSecondary);
+  static final TextStyle nameStyle = AppTypography.ui(size: 11.5, color: AppColors.textMuted);
+  static const double gap = 8;
+
+  static double _width(String text, TextStyle style, TextScaler scaler) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
+  }
+
+  static final Map<(String, TextScaler), double> _widthOfBoth = <(String, TextScaler), double>{};
+
+  /// The room the widest step and name of [category] need side by side.
+  static double widthOfBoth(UnitCategory category, TextScaler scaler) => _widthOfBoth.putIfAbsent(
+        (category.id, scaler),
+        () {
+          var needed = 0.0;
+          for (final unit in category.units) {
+            final step = unit.step;
+            if (step == null) continue;
+            final both = _width(step, stepStyle, scaler) + gap + _width(unit.name, nameStyle, scaler);
+            if (both > needed) needed = both;
+          }
+          return needed;
+        },
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final named = widthOfBoth(category, scaler) <= constraints.maxWidth;
+        return Row(
+          children: <Widget>[
+            Flexible(
+              child: Text(step, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: stepStyle),
+            ),
+            if (named) ...<Widget>[
+              const SizedBox(width: gap),
+              Text(name, maxLines: 1, style: nameStyle),
             ],
           ],
         );
